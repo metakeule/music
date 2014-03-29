@@ -143,8 +143,8 @@ func startEvent() *music.Event {
 		//InstrumentParams: map[string]float64{"dur": 0.01, "sustain": 0, "legato": 0.2, "sendGate": 1},
 		InstrumentParams: map[string]float64{"ar": 4, "dr": 4},
 		// InstrumentParams: map[string]float64{},
-		//Tempo:  music.Tempo(35),
-		Tempo:  music.Tempo(50),
+		Tempo: music.Tempo(35),
+		//Tempo:  music.Tempo(50),
 		Volume: 0.8,
 		Rhythm: rhythm.NewPop(0.8, 0.6, 0.9, 0.3),
 	}
@@ -154,7 +154,7 @@ func main() {
 	p := newPlayer()
 
 	ende := wrap.New(
-		wraps.After(&music.Event{Volume: 0.05, Height: 3, Length: 600}),
+		wraps.After(&music.Event{Volume: 0.15, Height: 3, Length: 600}),
 		wraps.Before(&music.Event{Height: 14}),
 		wraps.EachBefore(
 			&music.Event{Volume: 0.75},
@@ -164,17 +164,17 @@ func main() {
 			&music.Event{Volume: 0.10},
 		),
 		wraps.Repeat(4),
-		wraps.Before(music.Note(0, 40)),
+		wraps.Before(music.Note(0, 20)),
 		wraps.Before(music.Rest(20)),
-		wraps.Before(music.Note(2, 40)),
+		wraps.Before(music.Note(2, 20)),
 		wraps.Before(music.Rest(20)),
-		wraps.Before(music.Note(-2, 80)),
+		wraps.Before(music.Note(-2, 40)),
 		wraps.Before(music.Rest(20)),
 	)
 
 	motiv := wrap.New(
 		wraps.After(&music.Event{Height: -7}),
-		wraps.Repeat(2),
+		wraps.Repeat(5),
 		wraps.After(&music.Event{Height: 6}),
 		wraps.Before(music.Note(-2, 60)),
 		wraps.Before(music.Rest(40)),
@@ -207,9 +207,10 @@ func main() {
 
 	_ = w
 
-	//w.Transform(ew, nil)
+	w.Transform(ew, nil)
 	//motiv.Transform(ew, nil)
-	variation.Transform(ew, nil)
+	// variation.Transform(ew, nil)
+	//ende.Transform(ew, nil)
 
 	p.Play()
 }

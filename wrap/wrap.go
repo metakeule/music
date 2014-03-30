@@ -12,8 +12,8 @@ type Wrapper interface {
 	Wrap(inner music.Transformer) (outer music.Transformer)
 }
 
-// noop is a Modifier that does nothing
-var noop = music.TransformerFunc(func(music.EventWriter, []*music.Event) {})
+// noop is an EventWriter that does nothing
+var noop = music.TransformerFunc(func(events ...*music.Event) []*music.Event { return events })
 
 // New returns a Modifier that runs a stack of the given wrappers.
 // When the handler serves the request the first wrapper
@@ -23,6 +23,7 @@ var noop = music.TransformerFunc(func(music.EventWriter, []*music.Event) {})
 func New(wrapper ...Wrapper) (h music.Transformer) {
 	h = noop
 	for i := len(wrapper) - 1; i >= 0; i-- {
+		// for i := 0; i < len(wrapper); i++ {
 		h = wrapper[i].Wrap(h)
 	}
 	return

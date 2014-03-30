@@ -4,7 +4,6 @@ import (
 	"math/rand"
 
 	"github.com/metakeule/music"
-	"github.com/metakeule/music/wrap"
 )
 
 // randomBefore calls a randomly chosen transformer from the slice and runs it before the
@@ -15,14 +14,11 @@ func init() {
 	rand.Seed(232349342)
 }
 
-func (e randomBefore) Transform(inner music.Transformer, w music.EventWriter, events []*music.Event) {
-	e[rand.Intn(len(e))].Transform(w, events)
-	inner.Transform(w, events)
-}
-
 // Wrap wraps the given inner handler with the returned handler
 func (e randomBefore) Wrap(inner music.Transformer) music.Transformer {
-	return wrap.TransformTransformer(e, inner)
+	return music.TransformerFunc(func(evts ...*music.Event) []*music.Event {
+		return inner.Transform(e[rand.Intn(len(e))].Transform(evts...)...)
+	})
 }
 
 func RandomBefore(t ...music.Transformer) randomBefore {
@@ -33,14 +29,11 @@ type randomAfter []music.Transformer
 
 // randomBefore calls a randomly chosen transformer from the slice and runs it after the
 // inner transformer
-func (e randomAfter) Transform(inner music.Transformer, w music.EventWriter, events []*music.Event) {
-	inner.Transform(w, events)
-	e[rand.Intn(len(e))].Transform(w, events)
-}
-
 // Wrap wraps the given inner handler with the returned handler
 func (e randomAfter) Wrap(inner music.Transformer) music.Transformer {
-	return wrap.TransformTransformer(e, inner)
+	return music.TransformerFunc(func(evts ...*music.Event) []*music.Event {
+		return e[rand.Intn(len(e))].Transform(inner.Transform(evts...)...)
+	})
 }
 
 func RandomAfter(t ...music.Transformer) randomAfter {

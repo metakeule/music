@@ -252,3 +252,7 @@ type TransformerFunc func(events ...*Event) []*Event
 func (t TransformerFunc) Transform(events ...*Event) []*Event {
 	return t(events...)
 }
+
+func Group(evts ...*Event) events {
+	return events(evts)
+}

@@ -242,96 +242,65 @@ func main() {
 	_ = next
 	//ticker.Serial().Transform(start, music.Note(1, 100), music.Note(1, 100))
 
+	// A == B == C
 	wrap.New(
+		// A
+		next.Serial(music.Note(1, 100)),
+		next.Parallel(
+			music.Group(
+				music.Note(3, 100),
+				music.Note(5, 100),
+			),
+		),
+		next.Serial(music.Note(1, 100)),
+		next.Parallel(
+			music.Group(
+				music.Note(3, 100),
+				music.Note(5, 100),
+			),
+		),
+		// END OF A
+
+		// B
 		next.Serial(
 			music.Note(1, 100),
-			next.Serial(music.Note(1, 100)),
 			next.Parallel(
-				music.Events(
+				music.Group(
 					music.Note(3, 100),
 					music.Note(5, 100),
 				),
 			),
 			music.Note(1, 100),
-			// next.Serial(music.Note(1, 100)),
 			next.Parallel(
-				music.Events(
+				music.Group(
 					music.Note(3, 100),
 					music.Note(5, 100),
 				),
 			),
 		),
-		// wraps.Repeat(2,
-		/*
-			next.Parallel(
-				next.Serial(
-					music.Events(
-						music.Note(1, 100),
-						music.Note(3, 100),
-						music.Note(1, 100),
-						music.Note(3, 100),
-					),
-				),
-				next.Serial(
-					music.Events(
-						music.Rest(100),
-						music.Note(5, 100),
-						music.Rest(100),
-						music.Note(5, 100),
-					),
-				),
-			),
-		*/
-		// ),
-		/*
+		// END OF B
+
+		// C
+		next.Parallel(
 			next.Serial(
 				music.Events(
-					music.Note(2, 200),
-					music.Note(4, 200),
-					music.Rest(100),
+					music.Note(1, 100),
+					music.Note(3, 100),
+					music.Note(1, 100),
+					music.Note(3, 100),
 				),
 			),
-		*/
-		/*
-			next.Parallel(
+			next.Serial(
 				music.Events(
-					music.Rest(200),
-					music.Note(3, 100),
+					music.Rest(100),
+					music.Note(5, 100),
+					music.Rest(100),
 					music.Note(5, 100),
 				),
 			),
-			wraps.Repeat(2,
-				next.Serial(
-					music.Events(
-						music.Note(4, 200),
-						music.Note(2, 200),
-						music.Rest(100),
-					),
-				),
-			),
-		*/
+		),
+		// END OF C
 	).Transform()
 
-	/*
-		wrap.New(
-			wrap.Transformer(music.Note(1, 100)),
-			wraps.DeepSerial(
-				operator.Repeat(
-					8,
-					operator.Pipe(
-						transform.AddLength(10),
-						transform.AddHeight(1),
-					),
-				),
-			),
-			wraps.Serial(
-				music.Events(music.Note(1, 100), music.Note(4, 200)),
-				music.Note(-2, 50),
-				music.Events(music.Note(3, 100), music.Note(6, 100)),
-				music.Note(-2, 50),
-			),
-			wrap.EventWriter(seq),
-		).Write()
-	*/
 	p.Play()
 }

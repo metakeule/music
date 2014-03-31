@@ -205,7 +205,7 @@ func (ev *Event) MustBeComplete() {
 }
 
 // todo: check that all properties are set, or raise an error
-func (ev *Event) Sequencer(tw ToneWriter) *sequencer { return newSequencer(tw, ev) }
+// func (ev *Event) Sequencer(tw ToneWriter) *sequencer { return newSequencer(tw, ev) }
 
 func (ev *Event) instrument() string                       { return ev.Instrument }
 func (ev *Event) instrumentParameters() map[string]float64 { return ev.InstrumentParams }
@@ -272,17 +272,12 @@ func NewTicker(startTick uint, w ToneWriter) *Ticker {
 	return &Ticker{startTick, w}
 }
 
-func (t *Ticker) Serial(start *Event) *SerialSink {
-	return &SerialSink{t, t.ToneWriter, start}
+func (t *Ticker) Start(base *Event) *Start {
+	base.MustBeComplete()
+	return &Start{t, t.ToneWriter, base}
 }
 
-/*
-func (t *Ticker) Parallel(start *Event) *ParallelSink {
-	return &ParallelSink{t, t.ToneWriter, start}
-}
-*/
-
-type SerialSink struct {
+type Start struct {
 	Ticker *Ticker
 	ToneWriter
 	start *Event
@@ -325,7 +320,7 @@ func (p *parallel) Wrap(inner Transformer) Transformer {
 	})
 }
 
-func (s *SerialSink) Parallel(trs ...Transformer) *parallel {
+func (s *Start) Parallel(trs ...Transformer) *parallel {
 	return &parallel{
 		trs:        trs,
 		Ticker:     s.Ticker,
@@ -341,7 +336,7 @@ type serial struct {
 	start *Event
 }
 
-func (s *SerialSink) Serial(trs ...Transformer) *serial {
+func (s *Start) Serial(trs ...Transformer) *serial {
 	return &serial{
 		trs:        trs,
 		Ticker:     s.Ticker,
@@ -373,45 +368,22 @@ func (s *serial) Wrap(inner Transformer) Transformer {
 	})
 }
 
-func (s *SerialSink) WrapX(inner Transformer) Transformer {
-	return TransformerFunc(func(evts ...*Event) []*Event {
-		s.TransformX(evts...)
-		return inner.Transform()
-	})
+func InstrumentNote(height int, length uint, instr string) *Event {
+	return &Event{Height: height, Length: length, Instrument: instr}
 }
 
-// writes the event notes to the ToneWriter and returns an empty event list
-func (s *SerialSink) TransformX(events ...*Event) []*Event {
-	// fmt.Printf("transforming %d events\n", len(events))
-	all := []*Tone{}
-	currentPositionInBar := uint(0)
-	for _, ev := range events {
-		var t *Tone
-		s.Ticker.Current, currentPositionInBar, t = ev.ApplyTo(s.start).Tone(s.Ticker.Current, currentPositionInBar)
-		all = append(all, t)
-	}
-	s.ToneWriter.Write(all...)
-	return []*Event{}
+func Note(height int, length uint) *Event {
+	return &Event{Height: height, Length: length}
 }
 
-/*
-type ParallelSink struct {
-	Ticker *Ticker
-	ToneWriter
-	start *Event
+func AccentedNote(height int, length uint) *Event {
+	return &Event{Height: height, Length: length, Accent: true}
 }
 
-
-// writes the event notes to the ToneWriter and returns an empty event list
-func (s *ParallelSink) transform(events ...*Event) []*Event {
-	all := []*Tone{}
-	currentTicker := s.Ticker.Current
-	for _, ev := range events {
-		var t *Tone
-		_, _, t = ev.ApplyTo(s.start).Tone(currentTicker, 0)
-		all = append(all, t)
-	}
-	s.ToneWriter.Write(all...)
-	return []*Event{}
+func Rest(length uint) *Event {
+	return &Event{Length: length, Rest: true}
 }
-*/
+
+func Group(evts ...*Event) events {
+	return events(evts)
+}

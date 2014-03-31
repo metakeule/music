@@ -240,13 +240,3 @@ func (a *around) Transform(events ...*music.Event) []*music.Event {
 func Around(before []*music.Event, after []*music.Event) music.Transformer {
 	return &around{before, after}
 }
-
-type Repeat uint
-
-func (r Repeat) Transform(events ...*music.Event) []*music.Event {
-	res := []*music.Event{}
-	for i := 0; i < int(r); i++ {
-		res = append(res, events...)
-	}
-	return res
-}

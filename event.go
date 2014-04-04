@@ -74,9 +74,9 @@ func (ev *Event) Wrap(inner Transformer) Transformer {
 	})
 }
 
-type events []*Event
+type group []*Event
 
-func (e events) Clone() []*Event {
+func (e group) Clone() []*Event {
 	res := make([]*Event, len(e))
 
 	for i, ev := range e {
@@ -86,20 +86,12 @@ func (e events) Clone() []*Event {
 	return res
 }
 
-func (e events) Transform(evts ...*Event) []*Event {
+func (e group) Transform(evts ...*Event) []*Event {
 	return e.Clone()
-	//	return append(events(evts).Clone(), e.Clone()...)
 }
 
-func (e events) Wrap(inner Transformer) Transformer {
-	return TransformerFunc(func(evts ...*Event) []*Event {
-		evts = e.Transform(evts...)
-		return inner.Transform(evts...)
-	})
-}
-
-func Events(ev ...*Event) events {
-	return events(ev)
+func Group(events ...*Event) group {
+	return group(events)
 }
 
 // applies the events properties to the given event
@@ -253,6 +245,7 @@ func (ev *Event) amplitude(currentPositionInBar uint) float32 {
 }
 
 // TODO think over it, maybe we can get rid of Sequencer
+/*
 func (e events) Tones(currentTick uint, currentPositionInBar uint) []*Tone {
 	all := []*Tone{}
 	for _, ev := range e {
@@ -262,6 +255,7 @@ func (e events) Tones(currentTick uint, currentPositionInBar uint) []*Tone {
 	}
 	return all
 }
+*/
 
 type Ticker struct {
 	Current uint
@@ -297,7 +291,7 @@ func (p *parallel) Transform(events ...*Event) []*Event {
 
 	for _, tr := range p.trs {
 		p.Ticker.Current = currentTicker
-		allEvents = append(allEvents, tr.Transform(Events(events...).Clone()...)...)
+		allEvents = append(allEvents, tr.Transform(Group(events...).Clone()...)...)
 	}
 
 	all := []*Tone{}
@@ -350,7 +344,7 @@ func (s *serial) Transform(events ...*Event) []*Event {
 	currentPositionInBar := uint(0)
 
 	for _, tr := range s.trs {
-		for _, ev := range tr.Transform(Events(events...).Clone()...) {
+		for _, ev := range tr.Transform(Group(events...).Clone()...) {
 			var t *Tone
 			s.Ticker.Current, currentPositionInBar, t = ev.ApplyTo(s.start).Tone(s.Ticker.Current, currentPositionInBar)
 			all = append(all, t)
@@ -384,6 +378,13 @@ func Rest(length uint) *Event {
 	return &Event{Length: length, Rest: true}
 }
 
-func Group(evts ...*Event) events {
-	return events(evts)
+type Transformer interface {
+	// Transform transforms a Slice of musical events
+	Transform(events ...*Event) []*Event
+}
+
+type TransformerFunc func(events ...*Event) []*Event
+
+func (t TransformerFunc) Transform(events ...*Event) []*Event {
+	return t(events...)
 }

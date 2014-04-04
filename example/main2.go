@@ -26,8 +26,13 @@ func main() {
 		Rhythm: rhythm.NewPop(0.8, 0.6, 0.9, 0.3),
 	}
 
+	other := base.Clone()
+	other.Scale = scale.Moll(note.H)
+	other.Tempo = Tempo(20)
+
 	ticker := NewTicker(0, p)
 	track := ticker.Start(base)
+	track2 := ticker.Start(other)
 
 	// A == B == C
 
@@ -35,22 +40,27 @@ func main() {
 	track.Serial(
 
 		transform.Repeat(3, track.Serial(Note(3, 200))),
+
+		transform.Repeat(3, track2.Serial(Note(3, 200))),
+
 		// A
 		track.Serial(Note(1, 100)),
-		track.Parallel(
+		track2.Parallel(
 			Group(
 				Note(3, 100),
 				Note(5, 100),
 			),
 		),
-		track.Serial(Note(1, 100)),
-		track.Parallel(
+		track2.Serial(Note(1, 100)),
+		track2.Parallel(
 			Group(
 				Note(3, 100),
 				Note(5, 100),
 			),
 		),
 		// END OF A
+
+		transform.Repeat(3, track.Serial(Note(3, 200))),
 
 		// B
 		track.Serial(
@@ -71,10 +81,12 @@ func main() {
 		),
 		// END OF B
 
+		transform.Repeat(3, track.Serial(Note(3, 200))),
+
 		// C
 		track.Parallel(
 			track.Serial(
-				Events(
+				Group(
 					Note(1, 100),
 					Note(3, 100),
 					Note(1, 100),
@@ -82,7 +94,7 @@ func main() {
 				),
 			),
 			track.Serial(
-				Events(
+				Group(
 					Rest(100),
 					Note(5, 100),
 					Rest(100),

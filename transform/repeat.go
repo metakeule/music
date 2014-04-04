@@ -12,7 +12,7 @@ type repeat struct {
 func (r *repeat) Transform(evts ...*music.Event) []*music.Event {
 	all := []*music.Event{}
 	for i := 0; i < int(r.times); i++ {
-		all = append(all, r.tr.Transform(music.Events(evts...).Clone()...)...)
+		all = append(all, r.tr.Transform(music.Group(evts...).Clone()...)...)
 	}
 	return all
 }

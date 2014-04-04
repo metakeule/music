@@ -75,7 +75,7 @@ func (s *Periodic) Frequency(scalePosition int) float64 {
 	return note.MidiCps(float64(temp))
 }
 
-func Dur(base note.Note) *Periodic {
+func Ionian(base note.Note) *Periodic {
 	return &Periodic{
 		Steps:             []uint{2, 2, 1, 2, 2, 2, 1},
 		NumChromaticSteps: 12,
@@ -83,10 +83,92 @@ func Dur(base note.Note) *Periodic {
 	}
 }
 
-func Moll(base note.Note) *Periodic {
+func Dorian(base note.Note) *Periodic {
+	return &Periodic{
+		Steps:             []uint{2, 1, 2, 2, 2, 1, 2},
+		NumChromaticSteps: 12,
+		BaseNote:          base,
+	}
+}
+
+func Phrygian(base note.Note) *Periodic {
+	return &Periodic{
+		Steps:             []uint{1, 2, 2, 2, 1, 2, 2},
+		NumChromaticSteps: 12,
+		BaseNote:          base,
+	}
+}
+
+func Lydian(base note.Note) *Periodic {
+	return &Periodic{
+		Steps:             []uint{2, 2, 2, 1, 2, 2, 1},
+		NumChromaticSteps: 12,
+		BaseNote:          base,
+	}
+}
+
+func Mixolydian(base note.Note) *Periodic {
+	return &Periodic{
+		Steps:             []uint{2, 2, 1, 2, 2, 1, 2},
+		NumChromaticSteps: 12,
+		BaseNote:          base,
+	}
+}
+
+func Aeolian(base note.Note) *Periodic {
 	return &Periodic{
 		Steps:             []uint{2, 1, 2, 2, 1, 2, 2},
 		NumChromaticSteps: 12,
 		BaseNote:          base,
 	}
+}
+
+func Locrian(base note.Note) *Periodic {
+	return &Periodic{
+		Steps:             []uint{1, 2, 2, 1, 2, 2, 2},
+		NumChromaticSteps: 12,
+		BaseNote:          base,
+	}
+}
+
+func Hypolydian(base note.Note) *Periodic {
+	return Ionian(base)
+}
+
+func Hypomixolydian(base note.Note) *Periodic {
+	return Dorian(base)
+}
+
+func Dur(base note.Note) *Periodic {
+	return Ionian(base)
+}
+
+func Major(base note.Note) *Periodic {
+	return Dur(base)
+}
+
+func Moll(base note.Note) *Periodic {
+	return Aeolian(base)
+}
+
+func Minor(base note.Note) *Periodic {
+	return Moll(base)
+}
+
+func Hypodorian(base note.Note) *Periodic {
+	return Aeolian(base)
+}
+
+func Hypophrygian(base note.Note) *Periodic {
+	return Locrian(base)
+}
+
+var Mood = map[string]func(base note.Note) *Periodic{
+	"serious":  Dorian,
+	"sad":      Hypodorian,
+	"vehement": Phrygian,
+	"tender":   Hypophrygian,
+	"happy":    Lydian,
+	"pious":    Hypolydian,
+	"youthful": Mixolydian,
 }

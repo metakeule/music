@@ -1,10 +1,5 @@
 package music
 
-/*
-// Alles exemplarisch
-
-*/
-
 // eine skala liefert zu einer scalen position eine frequenz
 // bei z.B. C-Dur müssen alle möglichen positionen aller möglichen frequencen berücksichtigt werden
 // 0 ist die referenz-position, z.b. bei C-Dur das eingestrichene C. -8 wäre dann eine Oktave darunter

@@ -30,6 +30,70 @@ type Event struct {
 	Volume           float32            // falls keinen volume wechsel: <= 0
 }
 
+func (ev *Event) Equals(other *Event) bool {
+	if ev.Height != other.Height {
+		return false
+	}
+
+	if ev.Length != other.Length {
+		return false
+	}
+
+	if ev.Accent != other.Accent {
+		return false
+	}
+
+	if ev.Rest != other.Rest {
+		return false
+	}
+
+	if ev.Bar != other.Bar {
+		if ev.Bar == nil || other.Bar == nil {
+			return false
+		}
+
+		if ev.Bar.NumBeats != other.Bar.NumBeats {
+			return false
+		}
+
+		if ev.Bar.TempoBar != other.Bar.TempoBar {
+			return false
+		}
+	}
+
+	if ev.Volume != other.Volume {
+		return false
+	}
+
+	if ev.Instrument != other.Instrument {
+		return false
+	}
+
+	if len(ev.InstrumentParams) != len(other.InstrumentParams) {
+		return false
+	}
+
+	for k, v := range ev.InstrumentParams {
+		if other.InstrumentParams[k] != v {
+			return false
+		}
+	}
+
+	if ev.Scale != other.Scale {
+		return false
+	}
+
+	if ev.Tempo != other.Tempo {
+		return false
+	}
+
+	if ev.Rhythm != other.Rhythm {
+		return false
+	}
+
+	return true
+}
+
 func (ev *Event) Clone() *Event {
 	clone := &Event{}
 	clone.Accent = ev.Accent
@@ -72,26 +136,6 @@ func (ev *Event) Wrap(inner Transformer) Transformer {
 		evts = ev.Transform(evts...)
 		return inner.Transform(evts...)
 	})
-}
-
-type group []*Event
-
-func (e group) Clone() []*Event {
-	res := make([]*Event, len(e))
-
-	for i, ev := range e {
-		res[i] = ev.Clone()
-	}
-
-	return res
-}
-
-func (e group) Transform(evts ...*Event) []*Event {
-	return e.Clone()
-}
-
-func Group(events ...*Event) group {
-	return group(events)
 }
 
 // applies the events properties to the given event
@@ -257,111 +301,6 @@ func (e events) Tones(currentTick uint, currentPositionInBar uint) []*Tone {
 }
 */
 
-type Ticker struct {
-	Current uint
-	ToneWriter
-}
-
-func NewTicker(startTick uint, w ToneWriter) *Ticker {
-	return &Ticker{startTick, w}
-}
-
-func (t *Ticker) Start(base *Event) *Start {
-	base.MustBeComplete()
-	return &Start{t, t.ToneWriter, base}
-}
-
-type Start struct {
-	Ticker *Ticker
-	ToneWriter
-	start *Event
-}
-
-type parallel struct {
-	trs    []Transformer
-	Ticker *Ticker
-	ToneWriter
-	start *Event
-}
-
-func (p *parallel) Transform(events ...*Event) []*Event {
-	// first: take all transformer events
-	allEvents := []*Event{}
-	currentTicker := p.Ticker.Current
-
-	for _, tr := range p.trs {
-		p.Ticker.Current = currentTicker
-		allEvents = append(allEvents, tr.Transform(Group(events...).Clone()...)...)
-	}
-
-	all := []*Tone{}
-	for _, ev := range allEvents {
-		var t *Tone
-		_, _, t = ev.ApplyTo(p.start).Tone(currentTicker, 0)
-		all = append(all, t)
-	}
-	p.ToneWriter.Write(all...)
-	if len(allEvents) > 0 {
-		p.Ticker.Current, _, _ = allEvents[0].ApplyTo(p.start).duration(currentTicker, 0)
-	}
-	return []*Event{}
-}
-
-func (p *parallel) Wrap(inner Transformer) Transformer {
-	return TransformerFunc(func(events ...*Event) []*Event {
-		p.Transform(events...)
-		return inner.Transform()
-	})
-}
-
-func (s *Start) Parallel(trs ...Transformer) *parallel {
-	return &parallel{
-		trs:        trs,
-		Ticker:     s.Ticker,
-		ToneWriter: s.ToneWriter,
-		start:      s.start,
-	}
-}
-
-type serial struct {
-	trs    []Transformer
-	Ticker *Ticker
-	ToneWriter
-	start *Event
-}
-
-func (s *Start) Serial(trs ...Transformer) *serial {
-	return &serial{
-		trs:        trs,
-		Ticker:     s.Ticker,
-		ToneWriter: s.ToneWriter,
-		start:      s.start,
-	}
-}
-
-func (s *serial) Transform(events ...*Event) []*Event {
-	all := []*Tone{}
-	currentPositionInBar := uint(0)
-
-	for _, tr := range s.trs {
-		for _, ev := range tr.Transform(Group(events...).Clone()...) {
-			var t *Tone
-			s.Ticker.Current, currentPositionInBar, t = ev.ApplyTo(s.start).Tone(s.Ticker.Current, currentPositionInBar)
-			all = append(all, t)
-		}
-
-	}
-	s.ToneWriter.Write(all...)
-	return []*Event{}
-}
-
-func (s *serial) Wrap(inner Transformer) Transformer {
-	return TransformerFunc(func(events ...*Event) []*Event {
-		s.Transform(events...)
-		return inner.Transform()
-	})
-}
-
 func InstrumentNote(height int, length uint, instr string) *Event {
 	return &Event{Height: height, Length: length, Instrument: instr}
 }
@@ -376,15 +315,4 @@ func AccentedNote(height int, length uint) *Event {
 
 func Rest(length uint) *Event {
 	return &Event{Length: length, Rest: true}
-}
-
-type Transformer interface {
-	// Transform transforms a Slice of musical events
-	Transform(events ...*Event) []*Event
-}
-
-type TransformerFunc func(events ...*Event) []*Event
-
-func (t TransformerFunc) Transform(events ...*Event) []*Event {
-	return t(events...)
 }

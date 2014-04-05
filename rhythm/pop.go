@@ -4,6 +4,21 @@ import (
 	"github.com/metakeule/music"
 )
 
+type neutral struct{}
+
+func (p neutral) Amplitude(bar *music.Bar, pos uint, accent bool) float32 {
+	if accent {
+		return 1.0
+	}
+	return 0.5
+}
+
+func (p neutral) Delay(bar *music.Bar, pos uint) int {
+	return 0
+}
+
+var Neutral = neutral{}
+
 type popRhythm struct {
 	FirstAccentFactor  float32
 	SecondAccentFactor float32

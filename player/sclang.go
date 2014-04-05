@@ -40,7 +40,8 @@ func newPlayAction(performanceId int, tone *music.Tone) *funcAction {
 
 	// sleepUntilNext will be set, when we have the
 	// complete actions including the stop actions, to the time diff to the next action
-	return &funcAction{fn: fn, Info: fmt.Sprintf("play %0.2f (id: %d)", tone.Frequency, performanceId)}
+	return &funcAction{fn: fn, Info: fmt.Sprintf("play %0.2f (id: %d) / %0.2f",
+		tone.Frequency, performanceId, tone.Amplitude)}
 }
 
 // TODO: check how to correctly free them (ohne knacksen)

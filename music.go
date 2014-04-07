@@ -28,12 +28,3 @@ type Rhythm interface {
 	// verändert die startposition
 	Delay(bar *Bar, pos uint) int
 }
-
-// the ToneWriter writes all given tones at the same time (in parallel)
-type ToneWriter interface {
-	Write(tones ...*Tone)
-}
-
-type ToneWriterFunc func(...*Tone)
-
-func (t ToneWriterFunc) Write(tones ...*Tone) { t(tones...) }

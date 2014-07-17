@@ -1,30 +1,88 @@
 package music
 
-// eine skala liefert zu einer scalen position eine frequenz
-// bei z.B. C-Dur müssen alle möglichen positionen aller möglichen frequencen berücksichtigt werden
-// 0 ist die referenz-position, z.b. bei C-Dur das eingestrichene C. -8 wäre dann eine Oktave darunter
+type Instrument interface {
+	New(num int) []Voice
+	Name() string
+}
+
+type Voice interface {
+	On(*Event)
+	Off(*Event)
+	Change(*Event)
+	Name() string
+	Mute(*Event)
+	UnMute(*Event)
+}
+
 type Scale interface {
-	Frequency(scalePosition int) float64
+	Frequency(scalePosition float64) float64
 }
 
-type Bar struct {
-	NumBeats uint // the number of base units that fits into a bar
-	// der kehrwert davon ist die länge einer basiseinheit (die in der Note verwendet wird)
-	// in einem 4/4 takt ist NumBeats 4 in einem 6/8 takt 6
-	TempoBar uint // number of Bars (not beats!) per Minute
-	// TempoBar * NumBeats = Beats per Minute
+type Tracker interface {
+	EachBar() []Transformer
+	TempoAt(abspos Measure) Tempo
+	CurrentBar() Measure
+	BarNum() int
+	SetEachBar(eachBar ...Transformer)
+	SetTempo(position Measure, tempo Tempo)
+	At(position Measure, events ...*Event)
 }
 
-type Tempo uint // geschwindigkeit in Ticks per Minute
+//func New(bar string, tr ...Transformer) *Track {
+func New(bar string, tempo Tempo, tr ...Transformer) *Track {
+	//t := NewTrack(BPM(120), M(bar))
+	t := NewTrack(tempo, M(bar))
+	t.Compose(tr...)
+	return t
+}
 
-type Rhythm interface {
-	// Amplitude returns an amplitude factor that is multiplied by the current volume and passed to the instrument
-	// depending on the position in a Bar and the question if it has an accent
-	Amplitude(bar *Bar, pos uint, accent bool) float32
+type eachBar struct {
+	trafos []Transformer
+}
 
-	// verzögerung in % der basiseinheit des takes (für den groove)
-	// positiv (laid back) oder negativ (vorgezogen)
-	// in abhänigkeit vom takt und von der position des taktes
-	// verändert die startposition
-	Delay(bar *Bar, pos uint) int
+func (e *eachBar) Transform(t Tracker) {
+	for _, tr := range e.trafos {
+		tr.Transform(t)
+	}
+	t.SetEachBar(e.trafos...)
+}
+
+func EachBar(tr ...Transformer) *eachBar {
+	return &eachBar{tr}
+}
+
+func Metronome(voice Voice, unit Measure, eventProps ...map[string]float64) *metronome {
+	return &metronome{voice: voice, unit: unit, eventProps: eventProps}
+}
+
+func Bar(voice Voice, eventProps ...map[string]float64) *bar {
+	return &bar{voice: voice, eventProps: eventProps}
+}
+
+type metronome struct {
+	last       Measure
+	voice      Voice
+	unit       Measure
+	eventProps []map[string]float64
+}
+
+func (m *metronome) Transform(t Tracker) {
+	n := int(t.CurrentBar() / m.unit)
+	half := m.unit / 2
+	for i := 0; i < n; i++ {
+		t.At(m.unit*Measure(i), On(m.voice, m.eventProps...))
+		t.At(m.unit*Measure(i)+half, Off(m.voice))
+	}
+}
+
+type bar struct {
+	voice      Voice
+	counter    float64
+	eventProps []map[string]float64
+}
+
+func (m *bar) Transform(t Tracker) {
+	t.At(M("0"), On(m.voice, m.eventProps...))
+	t.At(M("1/8"), Off(m.voice))
+	m.counter++
 }

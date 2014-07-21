@@ -12,6 +12,7 @@ type Voice interface {
 	Name() string
 	Mute(*Event)
 	UnMute(*Event)
+	Offset() int // offset in millisecs, may be negative
 }
 
 type Scale interface {

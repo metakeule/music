@@ -267,18 +267,28 @@ func (s *sc) Play(startOffset uint, evts ...*music.Event) {
 	fmt.Fprintf(s.buffer, "],\n")
 
 	t := 0
+	// withStartTick := 1.0
+	skipSecs := float32(0.0)
 
 	beginOffset := float32(startOffset) / float32(1000)
 
+	if startTick != 0 {
+		skipSecs = tickToSeconds(int(startTick)+(tickNegative*(-1))) + 0.000001 + beginOffset
+	}
+
+	_ = skipSecs
+
 allEvents:
 	for _, ti := range ticksSorted {
-		if startTick != 0 && ti < int(startTick) {
-			t = ti
-			continue
-		}
-		if startTick != 0 {
-			ti = ti - int(startTick)
-		}
+		/*
+			if startTick != 0 && ti < int(startTick) {
+				t = ti
+				continue
+			}
+			if startTick != 0 {
+				ti = ti - int(startTick)
+			}
+		*/
 		if finTick != 0 && int(finTick) <= ti {
 			t = int(finTick)
 			break allEvents
@@ -368,7 +378,13 @@ allEvents:
 		//cmd = exec.Command("aplay", "--rate=48000", "-f", "U24_BE", audioFile)
 		//cmd = exec.Command("aplay", "-f", "S16_BE", "-c2", "--rate=48000", audioFile)
 		// "--start-delay=1000"
-		cmd = exec.Command("aplay", "-f", "FLOAT_BE", "-c2", "--rate=96000", audioFile)
+
+		// cmd = exec.Command("aplay", "-f", "FLOAT_BE", "-c2", "--rate=96000", audioFile)
+
+		// fmt.Fprintf(s.buffer, `  [%0.6f`, inSecs)
+
+		cmd = exec.Command("play", "-q", audioFile, "trim", fmt.Sprintf(`%0.6f`, skipSecs))
+
 		//cmd = exec.Command("aplay", "-f", "S32_BE", "-c2", "--rate=48000", audioFile)
 		// -f S16_BE -c2 -f44100
 		cmd.Run()

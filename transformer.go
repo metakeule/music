@@ -155,21 +155,22 @@ func (p *stop) Transform(t Tracker) {
 	t.At(p.pos, Off(p.Voice))
 }
 
-type end struct{}
+// type end struct{}
 
-func (end) Transform(t Tracker) {
-	t.At(M("0"), fin)
+func (e End) Transform(t Tracker) {
+	t.At(M(string(e)), fin)
 }
 
-var End = end{}
+// var End = end{}
+type End string
 
-type begin struct{}
+type Start string
 
-func (begin) Transform(t Tracker) {
-	t.At(M("0"), start)
+func (s Start) Transform(t Tracker) {
+	t.At(M(string(s)), start)
 }
 
-var Start = begin{}
+// var Start = begin{}
 
 type stopAll struct {
 	pos    Measure

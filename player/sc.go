@@ -273,27 +273,19 @@ func (s *sc) Play(startOffset uint, evts ...*music.Event) {
 	beginOffset := float32(startOffset) / float32(1000)
 
 	if startTick != 0 {
-		skipSecs = tickToSeconds(int(startTick)+(tickNegative*(-1))) + 0.000001 + beginOffset
+		skipSecs = getSeconds(int(startTick), tickNegative, beginOffset)
+		// skipSecs = tickToSeconds(int(startTick)+(tickNegative*(-1))) + 0.000001 + beginOffset
 	}
 
 	_ = skipSecs
 
-allEvents:
 	for _, ti := range ticksSorted {
-		/*
-			if startTick != 0 && ti < int(startTick) {
-				t = ti
-				continue
-			}
-			if startTick != 0 {
-				ti = ti - int(startTick)
-			}
-		*/
 		if finTick != 0 && int(finTick) <= ti {
 			t = int(finTick)
-			break allEvents
+			break
 		}
-		inSecs := tickToSeconds(ti+(tickNegative*(-1))) + 0.000001 + beginOffset
+		inSecs := getSeconds(ti, tickNegative, beginOffset)
+		// inSecs := tickToSeconds(ti+(tickNegative*(-1))) + 0.000001 + beginOffset
 		fmt.Fprintf(s.buffer, `  [%0.6f`, inSecs)
 		for _, ev := range tickMapped[ti] {
 			ev.Runner(ev)
@@ -302,13 +294,6 @@ allEvents:
 		fmt.Fprintf(s.buffer, "],\n")
 	}
 
-	//fmt.Fprintf(s.buffer, "  [%v, [\\c_set, 0, 0]]];\n", float32(t+10000000)/float32(1000000000))
-	// free the default group and unset the controllers
-	//fmt.Fprintf(s.buffer, "  [%v, [\\/clearSched], [\\g_deepFree, 1], [\\c_set, 0, 0]]];\n", float32(t)/float32(1000000000))
-
-	// 0.16666667
-	// stattdessen: 0.1666666
-	// 0.16666667
 	fmt.Fprintf(s.buffer, "  [%0.6f, [\\g_deepFree, 1], [\\c_set, 0, 0]]];\n", float32(t)/float32(1000000000))
 	fmt.Fprintf(s.buffer, `Score.write(x, "`+oscCodeFile+`");`+"\n")
 	fmt.Fprintf(s.buffer, "\n\n"+` "quitting".postln; 0.exit; )`)
@@ -316,19 +301,56 @@ allEvents:
 	ioutil.WriteFile(sclangCodeFile, s.buffer.Bytes(), 0644)
 	// fileWriteTime := time.Since(now)
 	// now = time.Now()
-	cmd := exec.Command("sclang", "-r", "-s", "-l", libraryPath, sclangCodeFile)
+
+	if !mkOSCFile(libraryPath, sclangCodeFile) {
+		return
+	}
+
+	// SclangTime := time.Since(now)
+	// now = time.Now()
+	var exportFloat bool
+
+	if s.AudioFile == "" {
+		exportFloat = true
+	}
+
+	if !mkAudiofile(oscCodeFile, audioFile, exportFloat) {
+		return
+	}
+	// ScsynthTime := time.Since(now)
+
+	// fmt.Printf("Time:\nwrite file: %s\nsclang: %s\nScsynth: %s\n", fileWriteTime, SclangTime, ScsynthTime)
+
+	if s.AudioFile == "" {
+		playFile(audioFile, skipSecs)
+	}
+}
+
+func getSeconds(tick int, negativeOffset int, offset float32) float32 {
+	return tickToSeconds(tick+(negativeOffset*(-1))) + 0.000001 + offset
+}
+
+func mkOSCFile(libraryPath, sclangCodeFile string) (ok bool) {
+	cmd := exec.Command(
+		"sclang",
+		"-r",
+		"-s",
+		"-l",
+		libraryPath,
+		sclangCodeFile,
+	)
 	out, err := cmd.CombinedOutput()
 
 	if err != nil {
 		fmt.Println("ERROR running sclang")
 		fmt.Printf("%s\n", out)
 		fmt.Println(err)
-		return
+		return false
 	}
+	return true
+}
 
-	// SclangTime := time.Since(now)
-	// now = time.Now()
-
+func mkAudiofile(oscCodeFile, audioFile string, exportFloat bool) (ok bool) {
 	// sample rate
 	// channels
 	// file format
@@ -363,44 +385,58 @@ allEvents:
 	*/
 	//cmd = exec.Command("scsynth", "-N", oscCodeFile, "_", audioFile, "48000", "AIFF", "int16", "-o", "2")
 	//cmd = exec.Command("scsynth", "-N", oscCodeFile, "_", audioFile, "48000", "AIFF", "float", "-o", "2")
-	cmd = exec.Command("scsynth", "-N", oscCodeFile, "_", audioFile, "96000", "AIFF", "int32", "-o", "2")
-	if s.AudioFile == "" {
-		cmd = exec.Command("scsynth", "-N", oscCodeFile, "_", audioFile, "96000", "AIFF", "float", "-o", "2")
-	}
-	out, err = cmd.CombinedOutput()
 
-	_ = out
-	// fmt.Printf("%s\n", out)
-	if err != nil {
+	format := "int32"
+	if exportFloat {
+		format = "float"
+	}
+
+	cmd := exec.Command(
+		"scsynth",
+		"-N",
+		oscCodeFile,
+		"_",
+		audioFile,
+		"96000",
+		"AIFF",
+		format,
+		"-o",
+		"2",
+	)
+
+	if out, err := cmd.CombinedOutput(); err != nil {
 		fmt.Println("ERROR running scsynth")
 		fmt.Println(err)
-		return
+		fmt.Printf("%s\n", out)
+		return false
 	}
-	// ScsynthTime := time.Since(now)
+	return true
+}
 
-	// fmt.Printf("Time:\nwrite file: %s\nsclang: %s\nScsynth: %s\n", fileWriteTime, SclangTime, ScsynthTime)
+func playFile(audioFile string, skipSecs float32) (ok bool) {
+	// S16_BE
+	// --channels=2 --file-type raw|au|voc|wav --rate=48000 --format=S16_BE
+	//cmd = exec.Command("aplay", "--rate=48000", "-f", "cdr", audioFile)
+	//cmd = exec.Command("aplay", "--rate=48000", "-f", "U24_BE", audioFile)
+	//cmd = exec.Command("aplay", "-f", "S16_BE", "-c2", "--rate=48000", audioFile)
+	// "--start-delay=1000"
 
-	if s.AudioFile == "" {
-		// S16_BE
-		// --channels=2 --file-type raw|au|voc|wav --rate=48000 --format=S16_BE
-		//cmd = exec.Command("aplay", "--rate=48000", "-f", "cdr", audioFile)
-		//cmd = exec.Command("aplay", "--rate=48000", "-f", "U24_BE", audioFile)
-		//cmd = exec.Command("aplay", "-f", "S16_BE", "-c2", "--rate=48000", audioFile)
-		// "--start-delay=1000"
+	// cmd = exec.Command("aplay", "-f", "FLOAT_BE", "-c2", "--rate=96000", audioFile)
+	//cmd = exec.Command("aplay", "-f", "S32_BE", "-c2", "--rate=48000", audioFile)
+	// -f S16_BE -c2 -f44100
 
-		// cmd = exec.Command("aplay", "-f", "FLOAT_BE", "-c2", "--rate=96000", audioFile)
+	cmd := exec.Command(
+		"play",
+		"-q",
+		audioFile,
+		"trim",
+		fmt.Sprintf(`%0.6f`, skipSecs),
+	)
 
-		// fmt.Fprintf(s.buffer, `  [%0.6f`, inSecs)
-
-		cmd = exec.Command("play", "-q", audioFile, "trim", fmt.Sprintf(`%0.6f`, skipSecs))
-
-		//cmd = exec.Command("aplay", "-f", "S32_BE", "-c2", "--rate=48000", audioFile)
-		// -f S16_BE -c2 -f44100
-		cmd.Run()
-		if err != nil {
-			fmt.Println("ERROR running aplay")
-			fmt.Println(err)
-			return
-		}
+	if err := cmd.Run(); err != nil {
+		fmt.Println("ERROR running play")
+		fmt.Println(err)
+		return false
 	}
+	return true
 }

@@ -312,7 +312,10 @@ allEvents:
 	fmt.Fprintf(s.buffer, "  [%0.6f, [\\g_deepFree, 1], [\\c_set, 0, 0]]];\n", float32(t)/float32(1000000000))
 	fmt.Fprintf(s.buffer, `Score.write(x, "`+oscCodeFile+`");`+"\n")
 	fmt.Fprintf(s.buffer, "\n\n"+` "quitting".postln; 0.exit; )`)
+	// now := time.Now()
 	ioutil.WriteFile(sclangCodeFile, s.buffer.Bytes(), 0644)
+	// fileWriteTime := time.Since(now)
+	// now = time.Now()
 	cmd := exec.Command("sclang", "-r", "-s", "-l", libraryPath, sclangCodeFile)
 	out, err := cmd.CombinedOutput()
 
@@ -322,6 +325,9 @@ allEvents:
 		fmt.Println(err)
 		return
 	}
+
+	// SclangTime := time.Since(now)
+	// now = time.Now()
 
 	// sample rate
 	// channels
@@ -370,6 +376,9 @@ allEvents:
 		fmt.Println(err)
 		return
 	}
+	// ScsynthTime := time.Since(now)
+
+	// fmt.Printf("Time:\nwrite file: %s\nsclang: %s\nScsynth: %s\n", fileWriteTime, SclangTime, ScsynthTime)
 
 	if s.AudioFile == "" {
 		// S16_BE

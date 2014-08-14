@@ -16,7 +16,7 @@ type Voice interface {
 }
 
 type Scale interface {
-	Frequency(scalePosition float64) float64
+	Frequency(degree int) float64
 }
 
 type Tracker interface {

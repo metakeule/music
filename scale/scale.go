@@ -37,7 +37,7 @@ type Chromatic struct {
 	A8 (a''''')           117
 */
 
-func (s *Chromatic) Frequency(scalePosition uint) float64 {
+func (s *Chromatic) Frequency(scalePosition int) float64 {
 	return note.MidiCps(float64(s.BaseNote) + float64(scalePosition))
 }
 

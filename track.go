@@ -208,7 +208,7 @@ func (t *Track) SetTempo(pos Measure, tempo Tempo) {
 	num, posInLast := t.CurrentBar().Add(pos)
 	abs := t.AbsPos + Measure(num)*t.CurrentBar() + posInLast
 	tempAt := tempoAt{AbsPos: abs, Tempo: tempo}
-	// fmt.Printf("set tempo to: %v at %v\n", tempo, tempAt.AbsPos)x
+	// fmt.Printf("set tempo to: %v at %v\n", tempo, tempAt.AbsPos)
 	t.Tempi = append(t.Tempi, tempAt)
 }
 

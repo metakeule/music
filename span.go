@@ -55,6 +55,8 @@ a = to-from+1 / (steps)²
 
 */
 
+// ExponentialDistributedValues returns the width (time difference) and values for and exponential growth from
+// the given value from to the given value to in the total time of dur with the given number of steps
 func ExponentialDistributedValues(from, to float64, steps int, dur Measure) (width Measure, diffs []float64) {
 	reverse := false
 	if to < from {

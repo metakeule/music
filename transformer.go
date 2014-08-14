@@ -142,6 +142,23 @@ func (p *playDur) Transform(t Tracker) {
 	t.At(p.pos+p.dur, Off(p.Voice))
 }
 
+type exec struct {
+	pos   Measure
+	fn    func(e *Event)
+	voice Voice
+	type_ string
+}
+
+func (e *exec) Transform(t Tracker) {
+	ev := newEvent(e.voice, e.type_)
+	ev.Runner = e.fn
+	t.At(e.pos, ev)
+}
+
+func Exec(pos string, v Voice, type_ string, fn func(t *Event)) Transformer {
+	return &exec{M(pos), fn, v, type_}
+}
+
 type stop struct {
 	pos Measure
 	Voice
@@ -343,8 +360,10 @@ type linearDistribute struct {
 	// from, to float64, steps int, dur Measure
 }
 
-func LinearDistribution(key string, from, to float64, steps int, dur Measure) *linearDistribute {
-	return &linearDistribute{from, to, steps, dur, key}
+// LinearDistribution creates a transformer that modifies the given parameter param
+// from the value from to the value to in n steps in linear growth for a total duration dur
+func LinearDistribution(param string, from, to float64, n int, dur Measure) *linearDistribute {
+	return &linearDistribute{from, to, n, dur, param}
 }
 
 func (l *linearDistribute) ModifyDistributed(position string, v Voice) Transformer {
@@ -381,8 +400,10 @@ type expDistribute struct {
 	// from, to float64, steps int, dur Measure
 }
 
-func ExponentialDistribution(key string, from, to float64, steps int, dur Measure) *expDistribute {
-	return &expDistribute{from, to, steps, dur, key}
+// ExponentialDistribution creates a transformer that modifies the given parameter param
+// from the value from to the value to in n steps in exponential growth for a total duration dur
+func ExponentialDistribution(param string, from, to float64, n int, dur Measure) *expDistribute {
+	return &expDistribute{from, to, n, dur, param}
 }
 
 func (l *expDistribute) ModifyDistributed(position string, v Voice) Transformer {

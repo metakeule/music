@@ -7,7 +7,7 @@ import (
 	"github.com/metakeule/music/note"
 )
 
-func Merge(m ...map[string]float64) map[string]float64 {
+func Set(m ...map[string]float64) map[string]float64 {
 	r := map[string]float64{}
 	for _, mm := range m {
 		for k, v := range mm {
@@ -17,10 +17,10 @@ func Merge(m ...map[string]float64) map[string]float64 {
 	return r
 }
 
-func SetRandom1(pos string, v music.Voice, key string, add float64, m ...map[string]float64) *randomized {
+func Random1(pos string, v music.Voice, key string, add float64, m ...map[string]float64) *randomized {
 	return &randomized{
 		Voice:     v,
-		vals:      Merge(m...),
+		vals:      Set(m...),
 		randomKey: key,
 		randomAdd: add,
 		pos:       pos,
@@ -50,44 +50,97 @@ func (r *randomized) Transform(tr music.Tracker) {
 }
 
 var (
-	Freq = "freq"
-	Amp  = "amp"
-	Out  = "out"
-	In   = "in"
-	Gate = "gate"
-	Pan  = "pan"
-	Dur  = "dur"
+	Freq_ = "freq"
+	Amp_  = "amp"
+	Out_  = "out"
+	In_   = "in"
+	Gate_ = "gate"
+	Pan_  = "pan"
+	Dur_  = "dur"
 )
 
-func SetFreq(n float64) map[string]float64 {
-	return map[string]float64{Freq: n}
+func Freq(n float64) map[string]float64 {
+	return map[string]float64{Freq_: n}
 }
 
-func SetAmp(v float64) map[string]float64 {
-	return map[string]float64{Amp: v}
+func Amp(v float64) map[string]float64 {
+	return map[string]float64{Amp_: v}
 }
 
-func SetOut(v int) map[string]float64 {
-	return map[string]float64{Out: float64(v)}
+func Out(v int) map[string]float64 {
+	return map[string]float64{Out_: float64(v)}
 }
 
-func SetIn(v int) map[string]float64 {
-	return map[string]float64{In: float64(v)}
+func In(v int) map[string]float64 {
+	return map[string]float64{In_: float64(v)}
 }
 
-func SetGate(v float64) map[string]float64 {
-	return map[string]float64{Gate: v}
+func Gate(v float64) map[string]float64 {
+	return map[string]float64{Gate_: v}
 }
 
-func SetPan(v float64) map[string]float64 {
-	return map[string]float64{Pan: v}
+func Pan(v float64) map[string]float64 {
+	return map[string]float64{Pan_: v}
 }
 
-func SetDur(v float64) map[string]float64 {
-	return map[string]float64{Dur: v}
+func Dur(v float64) map[string]float64 {
+	return map[string]float64{Dur_: v}
 }
 
 // gets a midi note but sets a frequency
-func SetNote(n note.Note) map[string]float64 {
-	return map[string]float64{Freq: n.Frequency()}
+func Note(n note.Note) map[string]float64 {
+	return map[string]float64{Freq_: n.Frequency()}
 }
+
+type ScaleStepper struct {
+	music.Scale
+}
+
+func (s *ScaleStepper) At(degree int) map[string]float64 {
+	return Freq(s.Frequency(degree))
+}
+
+func Degree(s music.Scale, degree int) map[string]float64 {
+	return Freq(s.Frequency(degree))
+}
+
+var (
+	FFFF_ float64 = 0.5
+	FFF_  float64 = 0.45
+	FF_   float64 = 0.4
+	F_    float64 = 0.35
+	MF_   float64 = 0.3
+	MP_   float64 = 0.25
+	P_    float64 = 0.2
+	PP_   float64 = 0.15
+	PPP_  float64 = 0.1
+	PPPP_ float64 = 0.05
+)
+
+func FFFF() map[string]float64 { return Amp(FFFF_) }
+
+// forte fortissimo
+func FFF() map[string]float64 { return Amp(FFF_) }
+
+// fortissimo
+func FF() map[string]float64 { return Amp(FF_) }
+
+// forte
+func F() map[string]float64 { return Amp(F_) }
+
+// mezzoforte
+func MF() map[string]float64 { return Amp(MF_) }
+
+// mezzopiano
+func MP() map[string]float64 { return Amp(MP_) }
+
+// piano
+func P() map[string]float64 { return Amp(P_) }
+
+// pianissimo
+func PP() map[string]float64 { return Amp(PP_) }
+
+// piano pianissimo
+func PPP() map[string]float64 { return Amp(PPP_) }
+
+func PPPP() map[string]float64 { return Amp(PPPP_) }

@@ -16,6 +16,15 @@ type Event struct {
 var fin = &Event{Runner: func(*Event) {}, Type: "fin"}
 var start = &Event{Runner: func(*Event) {}, Type: "start"}
 
+func newEvent(v Voice, type_ string) *Event {
+	return &Event{
+		Voice:          v,
+		Params:         map[string]float64{},
+		ParamModifiers: map[string]func(float64) float64{},
+		Type:           type_,
+	}
+}
+
 // merges the given params of the event into a clone
 // of ev, returning the clone
 // may be used with events that have modifiers, like Scale, Rhythm etc

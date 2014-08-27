@@ -43,6 +43,9 @@ type sampleVoice struct {
 	offset int
 }
 
+// TODO it would be nice to be able to load the sample (track that its loaded, so it does not have to be loaded again)
+// and then immediatly use it. the question is, if that works out in NRT and if it works when its loaded and used in the
+// same command - trial and error
 func (sv *sampleVoice) On(ev *music.Event) {
 	sv.voice.instrument.sc.instrNumber++
 	if sv.voice.instrNum > 2000 {
@@ -73,8 +76,8 @@ func (sv *sampleVoice) SetOffset(offset int) {
 	sv.offset = offset
 }
 
-var sampleLoader = `SynthDef("sample%d", { |gate=1,bufnum = 0,amp=1, out=0, pan=0| var z;
-	z =  EnvGen.kr(Env.perc,gate) * PlayBuf.ar(%d, bufnum, BufRateScale.kr(bufnum));
+var sampleLoader = `SynthDef("sample%d", { |gate=1,bufnum = 0,amp=1, out=0, pan=0, rate=1| var z;
+	z =  EnvGen.kr(Env.perc,gate) * PlayBuf.ar(%d, bufnum, BufRateScale.kr(bufnum) * rate);
 	FreeSelfWhenDone.kr(z);
 	Out.ar(out, Pan2.ar(z, pos: pan, level: amp));
 } )`

@@ -1,5 +1,15 @@
 package music
 
+type Parameter interface {
+	Params() map[string]float64
+}
+
+type Params map[string]float64
+
+func (p Params) Params() map[string]float64 {
+	return map[string]float64(p)
+}
+
 type Event struct {
 	Voice Voice
 	// parameters that might be modified by ParamModifiers
@@ -29,11 +39,14 @@ func newEvent(v Voice, type_ string) *Event {
 // of ev, returning the clone
 // may be used with events that have modifiers, like Scale, Rhythm etc
 // the given voice is set and we get an On event
-func (ev *Event) OnMerged(voice Voice, m map[string]float64) *Event {
+//func (ev *Event) OnMerged(voice Voice, m map[string]float64) *Event {
+func (ev *Event) OnMerged(voice Voice, ps ...Parameter) *Event {
 	n := ev.Clone()
 
-	for k, v := range m {
-		n.Params[k] = v
+	for _, p := range ps {
+		for k, v := range p.Params() {
+			n.Params[k] = v
+		}
 	}
 
 	n.Voice = voice
@@ -46,11 +59,14 @@ func (ev *Event) OnMerged(voice Voice, m map[string]float64) *Event {
 // of ev, returning the clone
 // may be used with events that have modifiers, like Scale, Rhythm etc
 // the given voice is set and we get a change event
-func (ev *Event) ChangeMerged(voice Voice, m map[string]float64) *Event {
+//func (ev *Event) ChangeMerged(voice Voice, m map[string]float64) *Event {
+func (ev *Event) ChangeMerged(voice Voice, ps ...Parameter) *Event {
 	n := ev.Clone()
 
-	for k, v := range m {
-		n.Params[k] = v
+	for _, p := range ps {
+		for k, v := range p.Params() {
+			n.Params[k] = v
+		}
 	}
 
 	n.Voice = voice
@@ -86,12 +102,13 @@ func (ev *Event) Clone() *Event {
 	return n
 }
 
-func On(v Voice, params ...map[string]float64) *Event {
+//func On(v Voice, params ...map[string]float64) *Event {
+func On(v Voice, params ...Parameter) *Event {
 	p := map[string]float64{}
 
 	for _, ps := range params {
 
-		for k, v := range ps {
+		for k, v := range ps.Params() {
 			p[k] = v
 		}
 
@@ -129,12 +146,13 @@ func UnMute(v Voice) *Event {
 	}
 }
 
-func Change(v Voice, params ...map[string]float64) *Event {
+//func Change(v Voice, params ...map[string]float64) *Event {
+func Change(v Voice, params ...Parameter) *Event {
 	p := map[string]float64{}
 
 	for _, ps := range params {
 
-		for k, v := range ps {
+		for k, v := range ps.Params() {
 			p[k] = v
 		}
 

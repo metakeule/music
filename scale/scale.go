@@ -1,6 +1,7 @@
 package scale
 
 import (
+	"github.com/metakeule/music"
 	"github.com/metakeule/music/note"
 )
 
@@ -37,8 +38,9 @@ type Chromatic struct {
 	A8 (a''''')           117
 */
 
-func (s *Chromatic) Frequency(scalePosition int) float64 {
-	return note.MidiCps(float64(s.BaseNote) + float64(scalePosition))
+func (s *Chromatic) Degree(scalePosition int) music.Parameter {
+	return note.Note(float64(s.BaseNote) + float64(scalePosition))
+	//return note.MidiCps(float64(s.BaseNote) + float64(scalePosition))
 }
 
 type Periodic struct {
@@ -48,7 +50,7 @@ type Periodic struct {
 }
 
 // TODO: test it
-func (s *Periodic) Frequency(scalePosition int) float64 {
+func (s *Periodic) Degree(scalePosition int) music.Parameter {
 	// we need to calculate the position in terms of the chromatic scale
 	// and then we return the frequency via MidiCps
 	num := len(s.Steps)
@@ -59,20 +61,22 @@ func (s *Periodic) Frequency(scalePosition int) float64 {
 	temp := int(s.BaseNote) + (cycle * int(s.NumChromaticSteps))
 
 	if posInScale == 0 {
-		return note.MidiCps(float64(temp))
+		return note.Note(float64(temp))
+		//return note.MidiCps(float64(temp))
 	}
 
 	if posInScale < 0 {
 		for i := posInScale; i < 0; i++ {
 			temp -= int(s.Steps[num+i])
 		}
-		return note.MidiCps(float64(temp))
+		return note.Note(float64(temp))
+		// return note.MidiCps(float64(temp))
 	}
 
 	for i := 0; i < posInScale; i++ {
 		temp += int(s.Steps[i])
 	}
-	return note.MidiCps(float64(temp))
+	return note.Note(float64(temp)) //  note.MidiCps(float64(temp))
 }
 
 func Ionian(base note.Note) *Periodic {

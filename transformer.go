@@ -27,7 +27,7 @@ func (sm *seqMod) NextModify(pos string) Transformer {
 }
 
 func (sm *seqModTrafo) Transform(tr Tracker) {
-	tr.At(sm.pos, Change(sm.seqMod.v, sm.seqMod.seq[sm.seqMod.Pos]))
+	tr.At(sm.pos, Change(sm.seqMod.v, Params(sm.seqMod.seq[sm.seqMod.Pos])))
 	if sm.seqMod.Pos < len(sm.seqMod.seq)-1 {
 		sm.seqMod.Pos++
 	} else {
@@ -35,7 +35,13 @@ func (sm *seqModTrafo) Transform(tr Tracker) {
 	}
 }
 
-func SeqeuenceModify(v Voice, seq ...map[string]float64) *seqMod {
+func SeqeuenceModify(v Voice, paramSeq ...Parameter) *seqMod {
+	seq := []map[string]float64{}
+
+	for _, p := range paramSeq {
+		seq = append(seq, p.Params())
+	}
+
 	return &seqMod{
 		seq: seq,
 		v:   v,
@@ -59,15 +65,26 @@ type seqPlayTrafo struct {
 	dur Measure
 }
 
-func SeqeuencePlay(v Voice, initParams map[string]float64, seq ...map[string]float64) *seqPlay {
-	return &seqPlay{
-		initParams: initParams,
-		seq:        seq,
-		v:          v,
+func SeqeuencePlay(v Voice, initParams Parameter, paramSeq ...Parameter) *seqPlay {
+	seq := []map[string]float64{}
+
+	for _, p := range paramSeq {
+		seq = append(seq, p.Params())
 	}
+
+	s := &seqPlay{
+		// initParams: nil,
+		seq: seq,
+		v:   v,
+	}
+
+	if initParams != nil {
+		s.initParams = initParams.Params()
+	}
+	return s
 }
 
-func (spt *seqPlayTrafo) params() (p map[string]float64) {
+func (spt *seqPlayTrafo) Params() (p map[string]float64) {
 	p = map[string]float64{}
 
 	for k, v := range spt.seqPlay.initParams {
@@ -81,7 +98,7 @@ func (spt *seqPlayTrafo) params() (p map[string]float64) {
 }
 
 func (spt *seqPlayTrafo) Transform(tr Tracker) {
-	tr.At(spt.pos, On(spt.seqPlay.v, spt.params()))
+	tr.At(spt.pos, On(spt.seqPlay.v, spt))
 	tr.At(spt.pos+spt.dur, Off(spt.seqPlay.v))
 	if spt.seqPlay.Pos < len(spt.seqPlay.seq)-1 {
 		spt.seqPlay.Pos++
@@ -96,23 +113,13 @@ type play struct {
 	Params map[string]float64
 }
 
-func Play(pos string, v Voice, params ...map[string]float64) *play {
-	p := map[string]float64{}
-
-	for _, ps := range params {
-
-		for k, v := range ps {
-			p[k] = v
-		}
-
-	}
-
-	return &play{M(pos), v, p}
+func Play(pos string, v Voice, params ...Parameter) *play {
+	return &play{M(pos), v, MergeParams(params...)}
 }
 
 func (p *play) Transform(t Tracker) {
 	// fmt.Printf("tempo at %s: %v BPM\n", p.pos, t.TempoAt(p.pos))
-	t.At(p.pos, On(p.Voice, p.Params))
+	t.At(p.pos, On(p.Voice, Params(p.Params)))
 }
 
 type playDur struct {
@@ -122,23 +129,13 @@ type playDur struct {
 	Params map[string]float64
 }
 
-func PlayDur(pos, dur string, v Voice, params ...map[string]float64) *playDur {
-	p := map[string]float64{}
-
-	for _, ps := range params {
-
-		for k, v := range ps {
-			p[k] = v
-		}
-
-	}
-
-	return &playDur{M(pos), M(dur), v, p}
+func PlayDur(pos, dur string, v Voice, params ...Parameter) *playDur {
+	return &playDur{M(pos), M(dur), v, MergeParams(params...)}
 }
 
 func (p *playDur) Transform(t Tracker) {
 	// fmt.Printf("tempo at %s: %v BPM\n", p.pos, t.TempoAt(p.pos))
-	t.At(p.pos, On(p.Voice, p.Params))
+	t.At(p.pos, On(p.Voice, Params(p.Params)))
 	t.At(p.pos+p.dur, Off(p.Voice))
 }
 
@@ -229,21 +226,12 @@ type mod struct {
 	Params map[string]float64
 }
 
-func Modify(pos string, v Voice, params ...map[string]float64) *mod {
-	p := map[string]float64{}
-
-	for _, ps := range params {
-
-		for k, v := range ps {
-			p[k] = v
-		}
-
-	}
-	return &mod{M(pos), v, p}
+func Modify(pos string, v Voice, params ...Parameter) *mod {
+	return &mod{M(pos), v, MergeParams(params...)}
 }
 
 func (p *mod) Transform(t Tracker) {
-	t.At(p.pos, Change(p.Voice, p.Params))
+	t.At(p.pos, Change(p.Voice, Params(p.Params)))
 }
 
 type times struct {
@@ -382,7 +370,7 @@ func (ld *linearDistributeTrafo) Transform(tr Tracker) {
 	pos := ld.pos
 	val := ld.linearDistribute.from
 	for i := 0; i < ld.linearDistribute.steps; i++ {
-		tr.At(pos, Change(ld.v, map[string]float64{ld.linearDistribute.key: val}))
+		tr.At(pos, Change(ld.v, Params(map[string]float64{ld.linearDistribute.key: val})))
 		pos += width
 		val += diff
 	}
@@ -421,7 +409,7 @@ func (ld *expDistributeTrafo) Transform(tr Tracker) {
 	// tr.At(ld.pos, Change(ld.v, ))
 	pos := ld.pos
 	for i := 0; i < ld.expDistribute.steps; i++ {
-		tr.At(pos, Change(ld.v, map[string]float64{ld.expDistribute.key: diffs[i]}))
+		tr.At(pos, Change(ld.v, Params(map[string]float64{ld.expDistribute.key: diffs[i]})))
 		pos += width
 		//val += diff
 	}

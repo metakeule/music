@@ -37,6 +37,10 @@ func (n Note) Frequency() float64 {
 	return MidiCps(float64(n))
 }
 
+func (n Note) Params() map[string]float64 {
+	return map[string]float64{"freq": n.Frequency()}
+}
+
 type ChromaticScale struct {
 	BaseNote Note
 }

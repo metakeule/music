@@ -16,7 +16,7 @@ type Voice interface {
 }
 
 type Scale interface {
-	Frequency(degree int) float64
+	Degree(degree int) Parameter
 }
 
 type Tracker interface {
@@ -52,26 +52,37 @@ func EachBar(tr ...Transformer) *eachBar {
 	return &eachBar{tr}
 }
 
-func Metronome(voice Voice, unit Measure, eventProps ...map[string]float64) *metronome {
-	return &metronome{voice: voice, unit: unit, eventProps: eventProps}
+func MergeParams(parameter ...Parameter) map[string]float64 {
+	params := map[string]float64{}
+
+	for _, p := range parameter {
+		for k, v := range p.Params() {
+			params[k] = v
+		}
+	}
+	return params
 }
 
-func Bar(voice Voice, eventProps ...map[string]float64) *bar {
-	return &bar{voice: voice, eventProps: eventProps}
+func Metronome(voice Voice, unit Measure, parameter ...Parameter) *metronome {
+	return &metronome{voice: voice, unit: unit, eventProps: MergeParams(parameter...)}
+}
+
+func Bar(voice Voice, parameter ...Parameter) *bar {
+	return &bar{voice: voice, eventProps: MergeParams(parameter...)}
 }
 
 type metronome struct {
 	last       Measure
 	voice      Voice
 	unit       Measure
-	eventProps []map[string]float64
+	eventProps map[string]float64
 }
 
 func (m *metronome) Transform(t Tracker) {
 	n := int(t.CurrentBar() / m.unit)
 	half := m.unit / 2
 	for i := 0; i < n; i++ {
-		t.At(m.unit*Measure(i), On(m.voice, m.eventProps...))
+		t.At(m.unit*Measure(i), On(m.voice, Params(m.eventProps)))
 		t.At(m.unit*Measure(i)+half, Off(m.voice))
 	}
 }
@@ -79,11 +90,11 @@ func (m *metronome) Transform(t Tracker) {
 type bar struct {
 	voice      Voice
 	counter    float64
-	eventProps []map[string]float64
+	eventProps map[string]float64
 }
 
 func (m *bar) Transform(t Tracker) {
-	t.At(M("0"), On(m.voice, m.eventProps...))
+	t.At(M("0"), On(m.voice, Params(m.eventProps)))
 	t.At(M("1/8"), Off(m.voice))
 	m.counter++
 }

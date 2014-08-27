@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -52,8 +53,11 @@ type sc struct {
 	busses           map[string]int
 	busNumber        int
 	Bus              *bus
+	WriteSynthDefs   bool
+	LoadSamples      bool
 	groupNumber      int
 	groups           []*group
+	scServerOnline   bool
 	// groupsByName     map[string]int
 }
 
@@ -131,12 +135,13 @@ func (s *sc) LoadSynthDefs(p string) {
 
 // startOffset is in milliseconds and must be positive
 func (s *sc) Play(startOffset uint, evts ...*music.Event) {
+
 	dir, err := ioutil.TempDir("/tmp", "go-sc-music-generator")
 	if err != nil {
 		panic(err.Error())
 	}
 
-	defer os.RemoveAll(dir)
+	// defer os.RemoveAll(dir)
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
@@ -199,25 +204,32 @@ func (s *sc) Play(startOffset uint, evts ...*music.Event) {
 	sort.Ints(ticksSorted)
 	fmt.Fprintf(s.buffer, "(\n")
 
-	for _, sdef := range s.synthdefs {
-		fmt.Fprintf(s.buffer, strings.TrimSpace(string(sdef))+".writeDefFile;")
+	s.checkForScServer()
+
+	// TODO: make flags to upload samples and write definition files when in server mode
+	if !s.scServerOnline || s.WriteSynthDefs {
+		for _, sdef := range s.synthdefs {
+			fmt.Fprintf(s.buffer, strings.TrimSpace(string(sdef))+".writeDefFile;")
+		}
 	}
 
-	//for sampleName, sampleId := range s.samples {
-	for sampleName, _ := range s.samples {
-		fullpath := filepath.Join(s.sampleDir, sampleName)
+	if !s.scServerOnline || s.LoadSamples {
+		//for sampleName, sampleId := range s.samples {
+		for sampleName, _ := range s.samples {
+			fullpath := filepath.Join(s.sampleDir, sampleName)
 
-		ch, err := numChannels(fullpath)
+			ch, err := numChannels(fullpath)
 
-		if err != nil {
-			panic(fmt.Sprintf("can't open sample file %s, reason: %s", sampleName, err.Error()))
+			if err != nil {
+				panic(fmt.Sprintf("can't open sample file %s, reason: %s", sampleName, err.Error()))
+			}
+
+			if ch != s.samplesChannels[sampleName] {
+				panic(fmt.Sprintf("sample file %s has %d channels and not %d", sampleName, ch, s.samplesChannels[sampleName]))
+			}
+
+			fmt.Fprintf(s.buffer, strings.TrimSpace(fmt.Sprintf(sampleLoader, s.samplesChannels[sampleName], s.samplesChannels[sampleName]))+".writeDefFile;")
 		}
-
-		if ch != s.samplesChannels[sampleName] {
-			panic(fmt.Sprintf("sample file %s has %d channels and not %d", sampleName, ch, s.samplesChannels[sampleName]))
-		}
-
-		fmt.Fprintf(s.buffer, strings.TrimSpace(fmt.Sprintf(sampleLoader, s.samplesChannels[sampleName], s.samplesChannels[sampleName]))+".writeDefFile;")
 	}
 
 	// lame --decode file.mp3 output.wav
@@ -295,16 +307,31 @@ func (s *sc) Play(startOffset uint, evts ...*music.Event) {
 	}
 
 	fmt.Fprintf(s.buffer, "  [%0.6f, [\\g_deepFree, 1], [\\c_set, 0, 0]]];\n", float32(t)/float32(1000000000))
-	fmt.Fprintf(s.buffer, `Score.write(x, "`+oscCodeFile+`");`+"\n")
-	fmt.Fprintf(s.buffer, "\n\n"+` "quitting".postln; 0.exit; )`)
 	// now := time.Now()
-	ioutil.WriteFile(sclangCodeFile, s.buffer.Bytes(), 0644)
+
+	// TODO change the generating code, so that the online server is reused
+	if s.scServerOnline {
+		fmt.Fprintf(s.buffer, "\n\nScore.play(x); )")
+		err := s.runBulkScServerCode(s.buffer.String())
+		if err != nil {
+			panic(err)
+			// println("server online")
+		}
+		// println("sent")
+		//time.Sleep(time.Millisecond * 500)
+		// time.Sleep(time.Second * 2)
+		return
+	} else {
+		fmt.Fprintf(s.buffer, `Score.write(x, "`+oscCodeFile+`");`+"\n")
+		fmt.Fprintf(s.buffer, "\n\n"+` "quitting".postln; 0.exit; )`)
+		ioutil.WriteFile(sclangCodeFile, s.buffer.Bytes(), 0644)
+		if !s.mkOSCFile(libraryPath, sclangCodeFile) {
+			return
+		}
+	}
+
 	// fileWriteTime := time.Since(now)
 	// now = time.Now()
-
-	if !mkOSCFile(libraryPath, sclangCodeFile) {
-		return
-	}
 
 	// SclangTime := time.Since(now)
 	// now = time.Now()
@@ -314,7 +341,7 @@ func (s *sc) Play(startOffset uint, evts ...*music.Event) {
 		exportFloat = true
 	}
 
-	if !mkAudiofile(oscCodeFile, audioFile, exportFloat) {
+	if !s.mkAudiofile(oscCodeFile, audioFile, exportFloat) {
 		return
 	}
 	// ScsynthTime := time.Since(now)
@@ -330,7 +357,50 @@ func getSeconds(tick int, negativeOffset int, offset float32) float32 {
 	return tickToSeconds(tick+(negativeOffset*(-1))) + 0.000001 + offset
 }
 
-func mkOSCFile(libraryPath, sclangCodeFile string) (ok bool) {
+func (s *sc) runBulkScServerCode(code string) error {
+	/*
+		strArr := strings.Split(code, "\n")
+
+		for _, str := range strArr {
+			err := s.runScServerCode(str)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	*/
+	// return s.runScServerCode(code)
+	// println(strings.Replace(code, "\n", "", -1))
+	return s.runScServerCode(strings.Replace(code, "\n", "", -1))
+}
+
+func (s *sc) runScServerCode(code string) error {
+	res, err := http.Post("http://localhost:9999/run", "application/octet-stream", strings.NewReader(code))
+	if err == nil {
+		defer res.Body.Close()
+		b, err2 := ioutil.ReadAll(res.Body)
+		if err2 == nil {
+			if string(b) == "ok" {
+				return nil
+			} else {
+				return fmt.Errorf(string(b))
+			}
+		} else {
+			return err2
+		}
+	} else {
+		return err
+	}
+}
+
+func (s *sc) checkForScServer() {
+	if s.runScServerCode(`"Go music script".postln;`) == nil {
+		s.scServerOnline = true
+	}
+}
+
+func (s *sc) mkOSCFile(libraryPath, sclangCodeFile string) (ok bool) {
 	cmd := exec.Command(
 		"sclang",
 		"-r",
@@ -350,7 +420,7 @@ func mkOSCFile(libraryPath, sclangCodeFile string) (ok bool) {
 	return true
 }
 
-func mkAudiofile(oscCodeFile, audioFile string, exportFloat bool) (ok bool) {
+func (s *sc) mkAudiofile(oscCodeFile, audioFile string, exportFloat bool) (ok bool) {
 	// sample rate
 	// channels
 	// file format

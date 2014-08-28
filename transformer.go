@@ -10,31 +10,31 @@ func (tf TransformerFunc) Transform(tr Tracker) {
 	tf(tr)
 }
 
+/*
 // func Modify(pos string, v Voice, params ...map[string]float64) *mod {
 type seqMod struct {
 	v   Voice
 	seq []map[string]float64
 	Pos int
 }
+*/
 
 type seqModTrafo struct {
-	*seqMod
-	pos Measure
-}
-
-func (sm *seqMod) NextModify(pos string) Transformer {
-	return &seqModTrafo{seqMod: sm, pos: M(pos)}
+	*seqPlay
+	pos            Measure
+	overrideParams Parameter
 }
 
 func (sm *seqModTrafo) Transform(tr Tracker) {
-	tr.At(sm.pos, Change(sm.seqMod.v, Params(sm.seqMod.seq[sm.seqMod.Pos])))
-	if sm.seqMod.Pos < len(sm.seqMod.seq)-1 {
-		sm.seqMod.Pos++
+	tr.At(sm.pos, Change(sm.seqPlay.v, Params(sm.seqPlay.seq[sm.seqPlay.Pos], sm.overrideParams)))
+	if sm.seqPlay.Pos < len(sm.seqPlay.seq)-1 {
+		sm.seqPlay.Pos++
 	} else {
-		sm.seqMod.Pos = 0
+		sm.seqPlay.Pos = 0
 	}
 }
 
+/*
 func SeqeuenceModify(v Voice, paramSeq ...Parameter) *seqMod {
 	seq := []map[string]float64{}
 
@@ -47,54 +47,40 @@ func SeqeuenceModify(v Voice, paramSeq ...Parameter) *seqMod {
 		v:   v,
 	}
 }
+*/
 
 type seqPlay struct {
-	seq        []map[string]float64
-	initParams map[string]float64
+	seq        []Parameter
+	initParams Parameter
 	v          Voice
 	Pos        int
 }
 
-func (sp *seqPlay) NextPlayDur(pos, dur string) Transformer {
-	return &seqPlayTrafo{seqPlay: sp, pos: M(pos), dur: M(dur)}
+func (sp *seqPlay) Modify(pos string, params ...Parameter) Transformer {
+	return &seqModTrafo{seqPlay: sp, pos: M(pos), overrideParams: Params(params...)}
+}
+
+func (sp *seqPlay) PlayDur(pos, dur string, params ...Parameter) Transformer {
+	return &seqPlayTrafo{seqPlay: sp, pos: M(pos), dur: M(dur), overrideParams: Params(params...)}
 }
 
 type seqPlayTrafo struct {
 	*seqPlay
-	pos Measure
-	dur Measure
+	pos            Measure
+	dur            Measure
+	overrideParams Parameter
 }
 
-func SeqeuencePlay(v Voice, initParams Parameter, paramSeq ...Parameter) *seqPlay {
-	seq := []map[string]float64{}
-
-	for _, p := range paramSeq {
-		seq = append(seq, p.Params())
+func ParamSequence(v Voice, initParams Parameter, paramSeq ...Parameter) *seqPlay {
+	return &seqPlay{
+		initParams: initParams,
+		seq:        paramSeq,
+		v:          v,
 	}
-
-	s := &seqPlay{
-		// initParams: nil,
-		seq: seq,
-		v:   v,
-	}
-
-	if initParams != nil {
-		s.initParams = initParams.Params()
-	}
-	return s
 }
 
 func (spt *seqPlayTrafo) Params() (p map[string]float64) {
-	p = map[string]float64{}
-
-	for k, v := range spt.seqPlay.initParams {
-		p[k] = v
-	}
-
-	for k, v := range spt.seqPlay.seq[spt.seqPlay.Pos] {
-		p[k] = v
-	}
-	return
+	return Params(spt.seqPlay.initParams, spt.seqPlay.seq[spt.seqPlay.Pos], spt.overrideParams).Params()
 }
 
 func (spt *seqPlayTrafo) Transform(tr Tracker) {
@@ -110,50 +96,50 @@ func (spt *seqPlayTrafo) Transform(tr Tracker) {
 type play struct {
 	pos Measure
 	Voice
-	Params map[string]float64
+	Params Parameter
 }
 
 func Play(pos string, v Voice, params ...Parameter) *play {
-	return &play{M(pos), v, MergeParams(params...)}
+	return &play{M(pos), v, Params(params...)}
 }
 
 func (p *play) Transform(t Tracker) {
 	// fmt.Printf("tempo at %s: %v BPM\n", p.pos, t.TempoAt(p.pos))
-	t.At(p.pos, On(p.Voice, Params(p.Params)))
+	t.At(p.pos, On(p.Voice, p.Params))
 }
 
 type playDur struct {
 	pos Measure
 	dur Measure
 	Voice
-	Params map[string]float64
+	Params Parameter
 }
 
 func PlayDur(pos, dur string, v Voice, params ...Parameter) *playDur {
-	return &playDur{M(pos), M(dur), v, MergeParams(params...)}
+	return &playDur{M(pos), M(dur), v, Params(params...)}
 }
 
 func (p *playDur) Transform(t Tracker) {
 	// fmt.Printf("tempo at %s: %v BPM\n", p.pos, t.TempoAt(p.pos))
-	t.At(p.pos, On(p.Voice, Params(p.Params)))
+	t.At(p.pos, On(p.Voice, p.Params))
 	t.At(p.pos+p.dur, Off(p.Voice))
 }
 
-type exec struct {
+type exec_ struct {
 	pos   Measure
 	fn    func(e *Event)
 	voice Voice
 	type_ string
 }
 
-func (e *exec) Transform(t Tracker) {
+func (e *exec_) Transform(t Tracker) {
 	ev := newEvent(e.voice, e.type_)
 	ev.Runner = e.fn
 	t.At(e.pos, ev)
 }
 
 func Exec(pos string, v Voice, type_ string, fn func(t *Event)) Transformer {
-	return &exec{M(pos), fn, v, type_}
+	return &exec_{M(pos), fn, v, type_}
 }
 
 type stop struct {
@@ -223,15 +209,15 @@ func (s *setTempo) Transform(t Tracker) {
 type mod struct {
 	pos Measure
 	Voice
-	Params map[string]float64
+	Params Parameter
 }
 
 func Modify(pos string, v Voice, params ...Parameter) *mod {
-	return &mod{M(pos), v, MergeParams(params...)}
+	return &mod{M(pos), v, Params(params...)}
 }
 
 func (p *mod) Transform(t Tracker) {
-	t.At(p.pos, Change(p.Voice, Params(p.Params)))
+	t.At(p.pos, Change(p.Voice, p.Params))
 }
 
 type times struct {
@@ -306,7 +292,7 @@ func (s *seqBool) Transform(t Tracker) {
 	}
 }
 
-func SequenceBool(trafo Transformer, seq ...bool) Transformer {
+func PatternOnOffSequence(trafo Transformer, seq ...bool) Transformer {
 	return &seqBool{seq: seq, pos: 0, trafo: trafo}
 }
 
@@ -324,7 +310,7 @@ func (s *sequence) Transform(t Tracker) {
 	}
 }
 
-func Sequence(seq ...Transformer) Transformer {
+func PatternSequence(seq ...Transformer) Transformer {
 	return &sequence{seq: seq}
 }
 
@@ -336,7 +322,7 @@ func (c compose) Transform(t Tracker) {
 	}
 }
 
-func Compose(trafos ...Transformer) Transformer {
+func Pattern(trafos ...Transformer) Transformer {
 	return compose(trafos)
 }
 
@@ -370,7 +356,7 @@ func (ld *linearDistributeTrafo) Transform(tr Tracker) {
 	pos := ld.pos
 	val := ld.linearDistribute.from
 	for i := 0; i < ld.linearDistribute.steps; i++ {
-		tr.At(pos, Change(ld.v, Params(map[string]float64{ld.linearDistribute.key: val})))
+		tr.At(pos, Change(ld.v, ParamsMap(map[string]float64{ld.linearDistribute.key: val})))
 		pos += width
 		val += diff
 	}
@@ -409,7 +395,7 @@ func (ld *expDistributeTrafo) Transform(tr Tracker) {
 	// tr.At(ld.pos, Change(ld.v, ))
 	pos := ld.pos
 	for i := 0; i < ld.expDistribute.steps; i++ {
-		tr.At(pos, Change(ld.v, Params(map[string]float64{ld.expDistribute.key: diffs[i]})))
+		tr.At(pos, Change(ld.v, ParamsMap(map[string]float64{ld.expDistribute.key: diffs[i]})))
 		pos += width
 		//val += diff
 	}

@@ -13,6 +13,7 @@ type Voice interface {
 	Mute(*Event)
 	UnMute(*Event)
 	Offset() int // offset in millisecs, may be negative
+	EventPlayer
 }
 
 type Scale interface {
@@ -29,6 +30,7 @@ type Tracker interface {
 	At(position Measure, events ...*Event)
 }
 
+/*
 //func New(bar string, tr ...Transformer) *Track {
 func New(bar string, tempo Tempo, tr ...Transformer) *Track {
 	//t := NewTrack(BPM(120), M(bar))
@@ -36,6 +38,7 @@ func New(bar string, tempo Tempo, tr ...Transformer) *Track {
 	t.Compose(tr...)
 	return t
 }
+*/
 
 type eachBar struct {
 	trafos []Transformer
@@ -52,7 +55,7 @@ func EachBar(tr ...Transformer) *eachBar {
 	return &eachBar{tr}
 }
 
-func MergeParams(parameter ...Parameter) map[string]float64 {
+func Params(parameter ...Parameter) Parameter {
 	params := map[string]float64{}
 
 	for _, p := range parameter {
@@ -60,29 +63,29 @@ func MergeParams(parameter ...Parameter) map[string]float64 {
 			params[k] = v
 		}
 	}
-	return params
+	return ParamsMap(params)
 }
 
 func Metronome(voice Voice, unit Measure, parameter ...Parameter) *metronome {
-	return &metronome{voice: voice, unit: unit, eventProps: MergeParams(parameter...)}
+	return &metronome{voice: voice, unit: unit, eventProps: Params(parameter...)}
 }
 
 func Bar(voice Voice, parameter ...Parameter) *bar {
-	return &bar{voice: voice, eventProps: MergeParams(parameter...)}
+	return &bar{voice: voice, eventProps: Params(parameter...)}
 }
 
 type metronome struct {
 	last       Measure
 	voice      Voice
 	unit       Measure
-	eventProps map[string]float64
+	eventProps Parameter
 }
 
 func (m *metronome) Transform(t Tracker) {
 	n := int(t.CurrentBar() / m.unit)
 	half := m.unit / 2
 	for i := 0; i < n; i++ {
-		t.At(m.unit*Measure(i), On(m.voice, Params(m.eventProps)))
+		t.At(m.unit*Measure(i), On(m.voice, m.eventProps))
 		t.At(m.unit*Measure(i)+half, Off(m.voice))
 	}
 }
@@ -90,11 +93,11 @@ func (m *metronome) Transform(t Tracker) {
 type bar struct {
 	voice      Voice
 	counter    float64
-	eventProps map[string]float64
+	eventProps Parameter
 }
 
 func (m *bar) Transform(t Tracker) {
-	t.At(M("0"), On(m.voice, Params(m.eventProps)))
+	t.At(M("0"), On(m.voice, m.eventProps))
 	t.At(M("1/8"), Off(m.voice))
 	m.counter++
 }

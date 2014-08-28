@@ -16,7 +16,7 @@ type Track struct {
 	compiled bool
 }
 
-func NewTrack(tempo Tempo, m Measure, eachBar ...Transformer) *Track {
+func newTrack(tempo Tempo, m Measure, eachBar ...Transformer) *Track {
 	return &Track{
 		AbsPos:  Measure(0),
 		Bars:    []Measure{m},
@@ -280,7 +280,7 @@ func (t *Track) Fill(num int, tr ...Transformer) *Track {
 }
 
 // calculates and sets the ticks for all events
-func (t *Track) Compile() {
+func (t *Track) compile() {
 	/*
 		sort.Sort(TempoSorted(t.Tempi))
 		sort.Sort(EventsSorted(t.Events))
@@ -361,6 +361,6 @@ type tempoAt struct {
 }
 
 func (t *Track) CompileAndPrint(tempo Tempo, unit string, wr io.Writer) {
-	t.Compile()
+	t.compile()
 	t.Print(tempo, unit, wr)
 }

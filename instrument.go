@@ -1,12 +1,10 @@
-package player
+package music
 
 import (
 	"bytes"
 	"fmt"
 
 	"strings"
-
-	"github.com/metakeule/music"
 )
 
 // TODO: perhaps use groups instead of instrNumbers
@@ -22,8 +20,8 @@ func (in *instrument) Name() string {
 	return in.name
 }
 
-func (in *instrument) New(num int) []music.Voice {
-	v := make([]music.Voice, num)
+func (in *instrument) New(num int) []Voice {
+	v := make([]Voice, num)
 	for i := 0; i < num; i++ {
 		in.sc.instrNumber++
 		name := fmt.Sprintf("%s-%d", in.name, i)
@@ -59,7 +57,7 @@ func (v *voice) SetGroup(group *group) {
 	v.group = group
 }
 
-func (v *voice) paramsStr(ev *music.Event) string {
+func (v *voice) paramsStr(ev *Event) string {
 	var buf bytes.Buffer
 
 	for k, v := range ev.FinalParams() {
@@ -72,7 +70,23 @@ func (v *voice) paramsStr(ev *music.Event) string {
 
 }
 
-func (v *voice) On(ev *music.Event) {
+func (v *voice) PlayDur(pos, dur string, params ...Parameter) Transformer {
+	return PlayDur(pos, dur, v, params...)
+}
+
+func (v *voice) Play(pos string, params ...Parameter) Transformer {
+	return Play(pos, v, params...)
+}
+
+func (v *voice) Stop(pos string) Transformer {
+	return Stop(pos, v)
+}
+
+func (v *voice) Modify(pos string, params ...Parameter) Transformer {
+	return Modify(pos, v, params...)
+}
+
+func (v *voice) On(ev *Event) {
 	v.instrument.sc.instrNumber++
 	if v.instrument.bus {
 		fmt.Fprintf(v.instrument.sc.buffer, `, [\s_new, \%s, %d, 1, 1200%s]`, v.instrument.name, v.instrNum, v.paramsStr(ev))
@@ -96,7 +110,7 @@ func (v *voice) On(ev *music.Event) {
 	fmt.Fprintf(v.instrument.sc.buffer, `, [\s_new, \%s, %d, 1, %d%s]`, v.instrument.name, v.instrNum, group, v.paramsStr(ev))
 }
 
-func (v *voice) Change(ev *music.Event) {
+func (v *voice) Change(ev *Event) {
 	// handle bus mapping
 	for k, val := range ev.FinalParams() {
 		if k[0] == '_' {
@@ -123,12 +137,12 @@ func (v *voice) Change(ev *music.Event) {
 	fmt.Fprintf(v.instrument.sc.buffer, `, [\n_set, %d%s]`, v.instrNum, v.paramsStr(ev))
 }
 
-func (v *voice) Off(ev *music.Event) {
+func (v *voice) Off(ev *Event) {
 	//fmt.Fprintf(v.instrument.sc.buffer, `, [\n_set, %d, \gate, 0]`, v.instrNum)
 	fmt.Fprintf(v.instrument.sc.buffer, `, [\n_set, %d, \gate, -1]`, v.instrNum)
 }
 
-func (v *voice) Mute(*music.Event)   { v.mute = true }
-func (v *voice) UnMute(*music.Event) { v.mute = false }
-func (v *voice) Name() string        { return v.name }
-func (v *voice) Offset() int         { return v.instrument.offset }
+func (v *voice) Mute(*Event)   { v.mute = true }
+func (v *voice) UnMute(*Event) { v.mute = false }
+func (v *voice) Name() string  { return v.name }
+func (v *voice) Offset() int   { return v.instrument.offset }

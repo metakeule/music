@@ -1,4 +1,4 @@
-package player
+package music
 
 import (
 	"bytes"
@@ -11,18 +11,16 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-
-	"github.com/metakeule/music"
 )
 
-func NewSc() *sc {
+func New() *sc {
 	s := &sc{
 		// osc:         &sclang.OscClient{},
 		instrNumber: 2000,
 		// sampleNumber:    4000,
 		sampleInstNumber: 4000,
 		voicesToNum:      map[string]int{},
-		numToVoices:      map[int]music.Voice{},
+		numToVoices:      map[int]Voice{},
 		synthdefs:        map[string][]byte{},
 		samples:          map[string]int{},
 		samplesChannels:  map[string]int{},
@@ -47,7 +45,7 @@ type sc struct {
 	samples          map[string]int
 	samplesChannels  map[string]int
 	voicesToNum      map[string]int
-	numToVoices      map[int]music.Voice
+	numToVoices      map[int]Voice
 	AudioFile        string
 	ScoreFile        string
 	busses           map[string]int
@@ -58,18 +56,29 @@ type sc struct {
 	groupNumber      int
 	groups           []*group
 	scServerOnline   bool
+	tracks           []*Track
 	// groupsByName     map[string]int
+}
+
+/*
+bar string, tempo Tempo, tr ...Transformer) *Track {
+	//t := NewTrack(BPM(120), M(bar))
+*/
+func (s *sc) Track(bar string, tempo Tempo) *Track {
+	tr := newTrack(tempo, M(bar))
+	s.tracks = append(s.tracks, tr)
+	return tr
 }
 
 func (s *sc) SetSampleDir(p string) {
 	s.sampleDir = p
 }
 
-func (s *sc) NewInstrument(name string, offset int) music.Instrument {
+func (s *sc) NewInstrument(name string, offset int) Instrument {
 	return &instrument{name: name, sc: s, offset: offset}
 }
 
-func (s *sc) NewRoute(name string) music.Instrument {
+func (s *sc) NewRoute(name string) Instrument {
 	return &instrument{name: name, sc: s, bus: true}
 }
 
@@ -134,14 +143,21 @@ func (s *sc) LoadSynthDefs(p string) {
 }
 
 // startOffset is in milliseconds and must be positive
-func (s *sc) Play(startOffset uint, evts ...*music.Event) {
+func (s *sc) Play(startOffset uint) {
+
+	evts := []*Event{}
+
+	for _, tr := range s.tracks {
+		tr.compile()
+		evts = append(evts, tr.Events...)
+	}
 
 	dir, err := ioutil.TempDir("/tmp", "go-sc-music-generator")
 	if err != nil {
 		panic(err.Error())
 	}
 
-	// defer os.RemoveAll(dir)
+	defer os.RemoveAll(dir)
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
@@ -166,7 +182,7 @@ func (s *sc) Play(startOffset uint, evts ...*music.Event) {
 
 	s.buffer = &bytes.Buffer{}
 
-	tickMapped := map[int][]*music.Event{}
+	tickMapped := map[int][]*Event{}
 	ticksSorted := []int{}
 
 	finTick := uint(0)

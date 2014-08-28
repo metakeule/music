@@ -37,6 +37,10 @@ func (n Note) Frequency() float64 {
 	return MidiCps(float64(n))
 }
 
+func (n Note) Transpose(add float64) Note {
+	return Note(float64(n) + add)
+}
+
 func (n Note) Params() map[string]float64 {
 	return map[string]float64{"freq": n.Frequency()}
 }

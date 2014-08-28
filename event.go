@@ -4,9 +4,9 @@ type Parameter interface {
 	Params() map[string]float64
 }
 
-type Params map[string]float64
+type ParamsMap map[string]float64
 
-func (p Params) Params() map[string]float64 {
+func (p ParamsMap) Params() map[string]float64 {
 	return map[string]float64(p)
 }
 

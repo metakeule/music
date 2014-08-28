@@ -1,10 +1,8 @@
-package player
+package music
 
 import (
 	"bytes"
 	"fmt"
-
-	"github.com/metakeule/music"
 )
 
 /*
@@ -43,7 +41,7 @@ func (g *group) Id() int {
 	return g.id
 }
 
-func (g *group) paramsStr(ev *music.Event) string {
+func (g *group) paramsStr(ev *Event) string {
 	var buf bytes.Buffer
 
 	for k, v := range ev.FinalParams() {
@@ -56,16 +54,35 @@ func (g *group) paramsStr(ev *music.Event) string {
 
 }
 
-func (g *group) Change(ev *music.Event) {
+func (v *group) PlayDur(pos, dur string, params ...Parameter) Transformer {
+	panic("PlayDur not allowed for group")
+	return nil
+}
+
+func (v *group) Play(pos string, params ...Parameter) Transformer {
+	panic("Play not allowed for group")
+	return nil
+}
+
+func (v *group) Stop(pos string) Transformer {
+	panic("Stop not allowed for group")
+	return nil
+}
+
+func (v *group) Modify(pos string, params ...Parameter) Transformer {
+	return Modify(pos, v, params...)
+}
+
+func (g *group) Change(ev *Event) {
 	fmt.Fprintf(g.sc.buffer, `, [\n_set, %d%s]`, g.id, g.paramsStr(ev))
 }
 
-func (g *group) Mute(*music.Event)   { panic("mute not allowed for group") }
-func (g *group) UnMute(*music.Event) { panic("unmute not allowed for group") }
-func (g *group) Name() string        { return g.name }
-func (g *group) On(ev *music.Event)  { panic("on not allowed for group") }
-func (g *group) Off(ev *music.Event) { panic("off not allowed for group") }
-func (g *group) Offset() int         { return 0 }
+func (g *group) Mute(*Event)   { panic("mute not allowed for group") }
+func (g *group) UnMute(*Event) { panic("unmute not allowed for group") }
+func (g *group) Name() string  { return g.name }
+func (g *group) On(ev *Event)  { panic("on not allowed for group") }
+func (g *group) Off(ev *Event) { panic("off not allowed for group") }
+func (g *group) Offset() int   { return 0 }
 
 func (s *sc) NewGroup(name string, parentGroup *group) *group {
 	s.groupNumber++

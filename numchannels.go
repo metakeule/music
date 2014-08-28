@@ -1,4 +1,4 @@
-package player
+package music
 
 import "github.com/mkb218/gosndfile/sndfile"
 

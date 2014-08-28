@@ -1,13 +1,11 @@
-package player
+package music
 
 import (
 	"fmt"
-
-	"github.com/metakeule/music"
 )
 
 type sample struct {
-	// func (in *instrument) New(num int) []music.Voice {
+	// func (in *instrument) New(num int) []Voice {
 	num int
 	*instrument
 	// offset int
@@ -43,10 +41,26 @@ type sampleVoice struct {
 	offset int
 }
 
+func (v *sampleVoice) PlayDur(pos, dur string, params ...Parameter) Transformer {
+	return PlayDur(pos, dur, v, params...)
+}
+
+func (v *sampleVoice) Play(pos string, params ...Parameter) Transformer {
+	return Play(pos, v, params...)
+}
+
+func (v *sampleVoice) Stop(pos string) Transformer {
+	return Stop(pos, v)
+}
+
+func (v *sampleVoice) Modify(pos string, params ...Parameter) Transformer {
+	return Modify(pos, v, params...)
+}
+
 // TODO it would be nice to be able to load the sample (track that its loaded, so it does not have to be loaded again)
 // and then immediatly use it. the question is, if that works out in NRT and if it works when its loaded and used in the
 // same command - trial and error
-func (sv *sampleVoice) On(ev *music.Event) {
+func (sv *sampleVoice) On(ev *Event) {
 	sv.voice.instrument.sc.instrNumber++
 	if sv.voice.instrNum > 2000 {
 		fmt.Fprintf(sv.voice.instrument.sc.buffer, `, [\n_free, %d]`, sv.voice.instrNum)
@@ -83,12 +97,12 @@ var sampleLoader = `SynthDef("sample%d", { |gate=1,bufnum = 0,amp=1, out=0, pan=
 } )`
 
 /*
-func (sv *sampleVoice) Off(ev *music.Event) {
+func (sv *sampleVoice) Off(ev *Event) {
 }
 */
 
 /*
-func (sv *sampleVoice) Off(ev *music.Event) {
+func (sv *sampleVoice) Off(ev *Event) {
 	//fmt.Fprintf(v.instrument.sc.buffer, `, [\n_set, %d, \gate, 0]`, v.instrNum)
 	fmt.Fprintf(sv.voice.instrument.sc.buffer, `, [\n_set, %d, \gate, -1]`, sv.voice.instrNum)
 }

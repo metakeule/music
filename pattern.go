@@ -1,12 +1,12 @@
 package music
 
-type Transformer interface {
-	Transform(Tracker)
+type Pattern interface {
+	Pattern(Tracker)
 }
 
-type TransformerFunc func(Tracker)
+type PatternFunc func(Tracker)
 
-func (tf TransformerFunc) Transform(tr Tracker) {
+func (tf PatternFunc) Pattern(tr Tracker) {
 	tf(tr)
 }
 
@@ -25,7 +25,7 @@ type seqModTrafo struct {
 	overrideParams Parameter
 }
 
-func (sm *seqModTrafo) Transform(tr Tracker) {
+func (sm *seqModTrafo) Pattern(tr Tracker) {
 	tr.At(sm.pos, Change(sm.seqPlay.v, Params(sm.seqPlay.seq[sm.seqPlay.Pos], sm.overrideParams)))
 	if sm.seqPlay.Pos < len(sm.seqPlay.seq)-1 {
 		sm.seqPlay.Pos++
@@ -56,11 +56,11 @@ type seqPlay struct {
 	Pos        int
 }
 
-func (sp *seqPlay) Modify(pos string, params ...Parameter) Transformer {
+func (sp *seqPlay) Modify(pos string, params ...Parameter) Pattern {
 	return &seqModTrafo{seqPlay: sp, pos: M(pos), overrideParams: Params(params...)}
 }
 
-func (sp *seqPlay) PlayDur(pos, dur string, params ...Parameter) Transformer {
+func (sp *seqPlay) PlayDur(pos, dur string, params ...Parameter) Pattern {
 	return &seqPlayTrafo{seqPlay: sp, pos: M(pos), dur: M(dur), overrideParams: Params(params...)}
 }
 
@@ -83,7 +83,7 @@ func (spt *seqPlayTrafo) Params() (p map[string]float64) {
 	return Params(spt.seqPlay.initParams, spt.seqPlay.seq[spt.seqPlay.Pos], spt.overrideParams).Params()
 }
 
-func (spt *seqPlayTrafo) Transform(tr Tracker) {
+func (spt *seqPlayTrafo) Pattern(tr Tracker) {
 	tr.At(spt.pos, On(spt.seqPlay.v, spt))
 	tr.At(spt.pos+spt.dur, Off(spt.seqPlay.v))
 	if spt.seqPlay.Pos < len(spt.seqPlay.seq)-1 {
@@ -103,7 +103,7 @@ func Play(pos string, v Voice, params ...Parameter) *play {
 	return &play{M(pos), v, Params(params...)}
 }
 
-func (p *play) Transform(t Tracker) {
+func (p *play) Pattern(t Tracker) {
 	// fmt.Printf("tempo at %s: %v BPM\n", p.pos, t.TempoAt(p.pos))
 	t.At(p.pos, On(p.Voice, p.Params))
 }
@@ -119,7 +119,7 @@ func PlayDur(pos, dur string, v Voice, params ...Parameter) *playDur {
 	return &playDur{M(pos), M(dur), v, Params(params...)}
 }
 
-func (p *playDur) Transform(t Tracker) {
+func (p *playDur) Pattern(t Tracker) {
 	// fmt.Printf("tempo at %s: %v BPM\n", p.pos, t.TempoAt(p.pos))
 	t.At(p.pos, On(p.Voice, p.Params))
 	t.At(p.pos+p.dur, Off(p.Voice))
@@ -132,13 +132,13 @@ type exec_ struct {
 	type_ string
 }
 
-func (e *exec_) Transform(t Tracker) {
+func (e *exec_) Pattern(t Tracker) {
 	ev := newEvent(e.voice, e.type_)
 	ev.Runner = e.fn
 	t.At(e.pos, ev)
 }
 
-func Exec(pos string, v Voice, type_ string, fn func(t *Event)) Transformer {
+func Exec(pos string, v Voice, type_ string, fn func(t *Event)) Pattern {
 	return &exec_{M(pos), fn, v, type_}
 }
 
@@ -151,13 +151,13 @@ func Stop(pos string, v Voice) *stop {
 	return &stop{M(pos), v}
 }
 
-func (p *stop) Transform(t Tracker) {
+func (p *stop) Pattern(t Tracker) {
 	t.At(p.pos, Off(p.Voice))
 }
 
 // type end struct{}
 
-func (e End) Transform(t Tracker) {
+func (e End) Pattern(t Tracker) {
 	t.At(M(string(e)), fin)
 }
 
@@ -166,7 +166,7 @@ type End string
 
 type Start string
 
-func (s Start) Transform(t Tracker) {
+func (s Start) Pattern(t Tracker) {
 	t.At(M(string(s)), start)
 }
 
@@ -187,7 +187,7 @@ func StopAll(pos string, vs ...[]Voice) *stopAll {
 	return s
 }
 
-func (p *stopAll) Transform(t Tracker) {
+func (p *stopAll) Pattern(t Tracker) {
 	for i := 0; i < len(p.Voices); i++ {
 		t.At(p.pos, Off(p.Voices[i]))
 	}
@@ -202,7 +202,7 @@ func SetTempo(at string, t Tempo) *setTempo {
 	return &setTempo{t, M(at)}
 }
 
-func (s *setTempo) Transform(t Tracker) {
+func (s *setTempo) Pattern(t Tracker) {
 	t.SetTempo(s.Pos, s.Tempo)
 }
 
@@ -216,22 +216,22 @@ func Modify(pos string, v Voice, params ...Parameter) *mod {
 	return &mod{M(pos), v, Params(params...)}
 }
 
-func (p *mod) Transform(t Tracker) {
+func (p *mod) Pattern(t Tracker) {
 	t.At(p.pos, Change(p.Voice, p.Params))
 }
 
 type times struct {
 	times int
-	trafo Transformer
+	trafo Pattern
 }
 
-func (n *times) Transform(t Tracker) {
+func (n *times) Pattern(t Tracker) {
 	for i := 0; i < n.times; i++ {
-		n.trafo.Transform(t)
+		n.trafo.Pattern(t)
 	}
 }
 
-func Times(num int, trafo Transformer) Transformer {
+func Times(num int, trafo Pattern) Pattern {
 	return &times{times: num, trafo: trafo}
 }
 
@@ -254,11 +254,11 @@ func Multiply(current, step float64) float64 {
 	return current * step
 }
 
-func (ts *tempoSpan) NextTempoChange(pos string) Transformer {
+func (ts *tempoSpan) SetTempo(pos string) Pattern {
 	return &tempoSpanTrafo{ts, pos}
 }
 
-func (ts *tempoSpanTrafo) Transform(t Tracker) {
+func (ts *tempoSpanTrafo) Pattern(t Tracker) {
 	var newtempo float64
 	if ts.current == -1 {
 		newtempo = ts.modifier(t.TempoAt(M(ts.pos)).BPM(), ts.step)
@@ -271,19 +271,19 @@ func (ts *tempoSpanTrafo) Transform(t Tracker) {
 }
 
 // for start = -1 takes the current tempo
-func TempoSpan(start float64, step float64, modifier func(current, step float64) float64) *tempoSpan {
+func TempoSequence(start float64, step float64, modifier func(current, step float64) float64) *tempoSpan {
 	return &tempoSpan{current: start, step: step, modifier: modifier}
 }
 
 type seqBool struct {
 	seq   []bool
 	pos   int
-	trafo Transformer
+	trafo Pattern
 }
 
-func (s *seqBool) Transform(t Tracker) {
+func (s *seqBool) Pattern(t Tracker) {
 	if s.seq[s.pos] {
-		s.trafo.Transform(t)
+		s.trafo.Pattern(t)
 	}
 	if s.pos < len(s.seq)-1 {
 		s.pos++
@@ -292,17 +292,17 @@ func (s *seqBool) Transform(t Tracker) {
 	}
 }
 
-func PatternOnOffSequence(trafo Transformer, seq ...bool) Transformer {
+func PatternOnOffSequence(trafo Pattern, seq ...bool) Pattern {
 	return &seqBool{seq: seq, pos: 0, trafo: trafo}
 }
 
 type sequence struct {
 	Pos int
-	seq []Transformer
+	seq []Pattern
 }
 
-func (s *sequence) Transform(t Tracker) {
-	s.seq[s.Pos].Transform(t)
+func (s *sequence) Pattern(t Tracker) {
+	s.seq[s.Pos].Pattern(t)
 	if s.Pos < len(s.seq)-1 {
 		s.Pos++
 	} else {
@@ -310,19 +310,19 @@ func (s *sequence) Transform(t Tracker) {
 	}
 }
 
-func PatternSequence(seq ...Transformer) Transformer {
+func PatternSequence(seq ...Pattern) Pattern {
 	return &sequence{seq: seq}
 }
 
-type compose []Transformer
+type compose []Pattern
 
-func (c compose) Transform(t Tracker) {
+func (c compose) Pattern(t Tracker) {
 	for _, trafo := range c {
-		trafo.Transform(t)
+		trafo.Pattern(t)
 	}
 }
 
-func Pattern(trafos ...Transformer) Transformer {
+func Patterns(trafos ...Pattern) Pattern {
 	return compose(trafos)
 }
 
@@ -340,7 +340,7 @@ func LinearDistribution(param string, from, to float64, n int, dur Measure) *lin
 	return &linearDistribute{from, to, n, dur, param}
 }
 
-func (l *linearDistribute) ModifyDistributed(position string, v Voice) Transformer {
+func (l *linearDistribute) ModifyDistributed(position string, v Voice) Pattern {
 	return &linearDistributeTrafo{l, v, M(position)}
 }
 
@@ -350,7 +350,7 @@ type linearDistributeTrafo struct {
 	pos Measure
 }
 
-func (ld *linearDistributeTrafo) Transform(tr Tracker) {
+func (ld *linearDistributeTrafo) Pattern(tr Tracker) {
 	width, diff := LinearDistributedValues(ld.linearDistribute.from, ld.linearDistribute.to, ld.linearDistribute.steps, ld.linearDistribute.dur)
 	// tr.At(ld.pos, Change(ld.v, ))
 	pos := ld.pos
@@ -380,7 +380,7 @@ func ExponentialDistribution(param string, from, to float64, n int, dur Measure)
 	return &expDistribute{from, to, n, dur, param}
 }
 
-func (l *expDistribute) ModifyDistributed(position string, v Voice) Transformer {
+func (l *expDistribute) ModifyDistributed(position string, v Voice) Pattern {
 	return &expDistributeTrafo{l, v, M(position)}
 }
 
@@ -390,7 +390,7 @@ type expDistributeTrafo struct {
 	pos Measure
 }
 
-func (ld *expDistributeTrafo) Transform(tr Tracker) {
+func (ld *expDistributeTrafo) Pattern(tr Tracker) {
 	width, diffs := ExponentialDistributedValues(ld.expDistribute.from, ld.expDistribute.to, ld.expDistribute.steps, ld.expDistribute.dur)
 	// tr.At(ld.pos, Change(ld.v, ))
 	pos := ld.pos

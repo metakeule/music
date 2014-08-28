@@ -54,22 +54,22 @@ func (g *group) paramsStr(ev *Event) string {
 
 }
 
-func (v *group) PlayDur(pos, dur string, params ...Parameter) Transformer {
+func (v *group) PlayDur(pos, dur string, params ...Parameter) Pattern {
 	panic("PlayDur not allowed for group")
 	return nil
 }
 
-func (v *group) Play(pos string, params ...Parameter) Transformer {
+func (v *group) Play(pos string, params ...Parameter) Pattern {
 	panic("Play not allowed for group")
 	return nil
 }
 
-func (v *group) Stop(pos string) Transformer {
+func (v *group) Stop(pos string) Pattern {
 	panic("Stop not allowed for group")
 	return nil
 }
 
-func (v *group) Modify(pos string, params ...Parameter) Transformer {
+func (v *group) Modify(pos string, params ...Parameter) Pattern {
 	return Modify(pos, v, params...)
 }
 

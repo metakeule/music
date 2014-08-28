@@ -41,19 +41,19 @@ type sampleVoice struct {
 	offset int
 }
 
-func (v *sampleVoice) PlayDur(pos, dur string, params ...Parameter) Transformer {
+func (v *sampleVoice) PlayDur(pos, dur string, params ...Parameter) Pattern {
 	return PlayDur(pos, dur, v, params...)
 }
 
-func (v *sampleVoice) Play(pos string, params ...Parameter) Transformer {
+func (v *sampleVoice) Play(pos string, params ...Parameter) Pattern {
 	return Play(pos, v, params...)
 }
 
-func (v *sampleVoice) Stop(pos string) Transformer {
+func (v *sampleVoice) Stop(pos string) Pattern {
 	return Stop(pos, v)
 }
 
-func (v *sampleVoice) Modify(pos string, params ...Parameter) Transformer {
+func (v *sampleVoice) Modify(pos string, params ...Parameter) Pattern {
 	return Modify(pos, v, params...)
 }
 

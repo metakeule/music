@@ -70,19 +70,19 @@ func (v *voice) paramsStr(ev *Event) string {
 
 }
 
-func (v *voice) PlayDur(pos, dur string, params ...Parameter) Transformer {
+func (v *voice) PlayDur(pos, dur string, params ...Parameter) Pattern {
 	return PlayDur(pos, dur, v, params...)
 }
 
-func (v *voice) Play(pos string, params ...Parameter) Transformer {
+func (v *voice) Play(pos string, params ...Parameter) Pattern {
 	return Play(pos, v, params...)
 }
 
-func (v *voice) Stop(pos string) Transformer {
+func (v *voice) Stop(pos string) Pattern {
 	return Stop(pos, v)
 }
 
-func (v *voice) Modify(pos string, params ...Parameter) Transformer {
+func (v *voice) Modify(pos string, params ...Parameter) Pattern {
 	return Modify(pos, v, params...)
 }
 

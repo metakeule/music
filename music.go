@@ -21,18 +21,18 @@ type Scale interface {
 }
 
 type Tracker interface {
-	EachBar() []Transformer
+	EachBar() []Pattern
 	TempoAt(abspos Measure) Tempo
 	CurrentBar() Measure
 	BarNum() int
-	SetEachBar(eachBar ...Transformer)
+	SetEachBar(eachBar ...Pattern)
 	SetTempo(position Measure, tempo Tempo)
 	At(position Measure, events ...*Event)
 }
 
 /*
-//func New(bar string, tr ...Transformer) *Track {
-func New(bar string, tempo Tempo, tr ...Transformer) *Track {
+//func New(bar string, tr ...Patterner) *Track {
+func New(bar string, tempo Tempo, tr ...Patterner) *Track {
 	//t := NewTrack(BPM(120), M(bar))
 	t := NewTrack(tempo, M(bar))
 	t.Compose(tr...)
@@ -41,17 +41,17 @@ func New(bar string, tempo Tempo, tr ...Transformer) *Track {
 */
 
 type eachBar struct {
-	trafos []Transformer
+	trafos []Pattern
 }
 
-func (e *eachBar) Transform(t Tracker) {
+func (e *eachBar) Pattern(t Tracker) {
 	for _, tr := range e.trafos {
-		tr.Transform(t)
+		tr.Pattern(t)
 	}
 	t.SetEachBar(e.trafos...)
 }
 
-func EachBar(tr ...Transformer) *eachBar {
+func EachBar(tr ...Pattern) *eachBar {
 	return &eachBar{tr}
 }
 
@@ -81,7 +81,7 @@ type metronome struct {
 	eventProps Parameter
 }
 
-func (m *metronome) Transform(t Tracker) {
+func (m *metronome) Pattern(t Tracker) {
 	n := int(t.CurrentBar() / m.unit)
 	half := m.unit / 2
 	for i := 0; i < n; i++ {
@@ -96,7 +96,7 @@ type bar struct {
 	eventProps Parameter
 }
 
-func (m *bar) Transform(t Tracker) {
+func (m *bar) Pattern(t Tracker) {
 	t.At(M("0"), On(m.voice, m.eventProps))
 	t.At(M("1/8"), Off(m.voice))
 	m.counter++

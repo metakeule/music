@@ -12,11 +12,11 @@ type Track struct {
 	AbsPos   Measure
 	Tempi    []tempoAt
 	Events   []*Event
-	eachBar  []Transformer
+	eachBar  []Pattern
 	compiled bool
 }
 
-func newTrack(tempo Tempo, m Measure, eachBar ...Transformer) *Track {
+func newTrack(tempo Tempo, m Measure, eachBar ...Pattern) *Track {
 	return &Track{
 		AbsPos:  Measure(0),
 		Bars:    []Measure{m},
@@ -25,24 +25,24 @@ func newTrack(tempo Tempo, m Measure, eachBar ...Transformer) *Track {
 	}
 }
 
-func (t *Track) SetEachBar(eachBar ...Transformer) {
+func (t *Track) SetEachBar(eachBar ...Pattern) {
 	t.eachBar = eachBar
 }
 
-func (t *Track) EachBar() []Transformer {
+func (t *Track) EachBar() []Pattern {
 	return t.eachBar
 }
 
 func (t *Track) nextBar() {
 	t.Bars = append(t.Bars, t.Bars[len(t.Bars)-1])
 	t.AbsPos = t.AbsPos + t.Bars[len(t.Bars)-1]
-	t.Compose(t.eachBar...)
+	t.Patterns(t.eachBar...)
 }
 
 func (t *Track) changeBar(newBar Measure) {
 	t.Bars = append(t.Bars, newBar)
 	t.AbsPos = t.AbsPos + t.Bars[len(t.Bars)-1]
-	t.Compose(t.eachBar...)
+	t.Patterns(t.eachBar...)
 }
 
 // raster is, how many ticks will equal to 3 chars width
@@ -251,30 +251,30 @@ func (t *Track) TempoAt(abspos Measure) Tempo {
 	panic("no tempo found")
 }
 
-func (t *Track) Compose(tf ...Transformer) *Track {
+func (t *Track) Patterns(tf ...Pattern) *Track {
 	for _, trafo := range tf {
-		trafo.Transform(t)
+		trafo.Pattern(t)
 	}
 	return t
 }
 
-func (t *Track) Next(tr ...Transformer) *Track {
+func (t *Track) Next(tr ...Pattern) *Track {
 	t.nextBar()
-	t.Compose(tr...)
+	t.Patterns(tr...)
 	return t
 }
 
-func (t *Track) Change(bar string, tr ...Transformer) *Track {
+func (t *Track) Change(bar string, tr ...Pattern) *Track {
 	t.changeBar(M(bar))
-	t.Compose(tr...)
+	t.Patterns(tr...)
 	return t
 }
 
 // fill with num bars, transformers are repeated each bar
-func (t *Track) Fill(num int, tr ...Transformer) *Track {
+func (t *Track) Fill(num int, tr ...Pattern) *Track {
 	for i := 0; i < num; i++ {
 		t.nextBar()
-		t.Compose(tr...)
+		t.Patterns(tr...)
 	}
 	return t
 }

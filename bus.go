@@ -5,12 +5,14 @@ import (
 )
 
 type bus struct {
-	sc *sc
+	sc scer
 }
 
 func (b *bus) Id(name string) int {
-	busno, ok := b.sc.busses[name]
-	if !ok {
+	busno := b.sc.GetBus(name)
+	// busno, ok := b.sc.busses[name]
+	//if !ok {
+	if busno == -1 {
 		panic("unknown bus " + name)
 	}
 	return busno
@@ -19,11 +21,14 @@ func (b *bus) Id(name string) int {
 func (b *bus) Change(ev *Event) {
 	busses := ev.Params
 	for name, val := range busses {
-		busno, ok := b.sc.busses[name]
-		if !ok {
+		//busno, ok := b.sc.busses[name]
+		busno := b.sc.GetBus(name)
+		// if !ok {
+		if busno == -1 {
 			panic("unknown bus " + name)
 		}
-		fmt.Fprintf(b.sc.buffer, `, [\c_set, \%d, %v]`, busno, val)
+		//fmt.Fprintf(b.sc.buffer, `, [\c_set, \%d, %v]`, busno, val)
+		fmt.Fprintf(b.sc, `, [\c_set, \%d, %v]`, busno, val)
 	}
 }
 

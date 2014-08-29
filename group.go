@@ -21,7 +21,7 @@ fmt.Fprintf(v.instrument.sc.buffer, `, [\g_new, \%d, 1, \%d]`, v.instrument.name
 */
 
 type group struct {
-	sc     *sc
+	sc     scer
 	id     int
 	name   string
 	parent int
@@ -74,7 +74,8 @@ func (v *group) Modify(pos string, params ...Parameter) Pattern {
 }
 
 func (g *group) Change(ev *Event) {
-	fmt.Fprintf(g.sc.buffer, `, [\n_set, %d%s]`, g.id, g.paramsStr(ev))
+	//fmt.Fprintf(g.sc.buffer, `, [\n_set, %d%s]`, g.id, g.paramsStr(ev))
+	fmt.Fprintf(g.sc, `, [\n_set, %d%s]`, g.id, g.paramsStr(ev))
 }
 
 func (g *group) Mute(*Event)   { panic("mute not allowed for group") }
@@ -84,12 +85,12 @@ func (g *group) On(ev *Event)  { panic("on not allowed for group") }
 func (g *group) Off(ev *Event) { panic("off not allowed for group") }
 func (g *group) Offset() int   { return 0 }
 
-func (s *sc) NewGroup(name string, parentGroup *group) *group {
+func (s *sc) Group(name string, parentGroup *group) *group {
 	s.groupNumber++
 	g := &group{
 		id:     s.groupNumber,
 		name:   name,
-		sc:     s,
+		sc:     s.scForInstr,
 		parent: 1010,
 	}
 	if parentGroup != nil {

@@ -3,16 +3,34 @@ package music
 import (
 	"bytes"
 	"fmt"
+	"io"
 
 	"strings"
 )
 
+type SampleOrchestra interface {
+	SampleForParams(instrument string, params map[string]float64) string
+}
+
 // TODO: perhaps use groups instead of instrNumbers
 
+type scer interface {
+	io.Writer
+	IncrSampleNumber() int
+	IncrInstrNumber() int
+	SetVoiceToNum(name string, num int)
+	SetNumToVoices(num int, v Voice)
+	GetBus(name string) int
+	UseSample(name string)
+	UseInstrument(name string)
+	GetSampleOffset(name string) int
+}
+
 type instrument struct {
-	name   string
-	bus    bool
-	sc     *sc
+	name string
+	bus  bool
+	//sc     *sc
+	sc     scer
 	offset int
 }
 
@@ -20,20 +38,26 @@ func (in *instrument) Name() string {
 	return in.name
 }
 
-func (in *instrument) New(num int) []Voice {
+func (in *instrument) Voices(num int) []Voice {
 	v := make([]Voice, num)
 	for i := 0; i < num; i++ {
-		in.sc.instrNumber++
+		// in.sc.instrNumber++
+		instrn := in.sc.IncrInstrNumber()
 		name := fmt.Sprintf("%s-%d", in.name, i)
 		vc := &voice{
 			name:       name,
 			instrument: in,
 			num:        i,
-			instrNum:   in.sc.instrNumber,
+			// instrNum:   in.sc.instrNumber,
+			instrNum: instrn,
 		}
 		v[i] = vc
-		in.sc.voicesToNum[name] = in.sc.instrNumber
-		in.sc.numToVoices[in.sc.instrNumber] = vc
+		// in.sc.voicesToNum[name] = in.sc.instrNumber
+		// in.sc.voicesToNum[name] = instrn
+		in.sc.SetVoiceToNum(name, instrn)
+		//in.sc.numToVoices[in.sc.instrNumber] = vc
+		// in.sc.numToVoices[instrn] = vc
+		in.sc.SetNumToVoices(instrn, vc)
 	}
 	return v
 }
@@ -87,15 +111,20 @@ func (v *voice) Modify(pos string, params ...Parameter) Pattern {
 }
 
 func (v *voice) On(ev *Event) {
-	v.instrument.sc.instrNumber++
+	v.instrument.sc.UseInstrument(v.instrument.name)
+	instrnum := v.instrument.sc.IncrInstrNumber()
+	// v.instrument.sc.instrNumber++
 	if v.instrument.bus {
-		fmt.Fprintf(v.instrument.sc.buffer, `, [\s_new, \%s, %d, 1, 1200%s]`, v.instrument.name, v.instrNum, v.paramsStr(ev))
+		//fmt.Fprintf(v.instrument.sc.buffer, `, [\s_new, \%s, %d, 1, 1200%s]`, v.instrument.name, v.instrNum, v.paramsStr(ev))
+		fmt.Fprintf(v.instrument.sc, `, [\s_new, \%s, %d, 1, 1200%s]`, v.instrument.name, v.instrNum, v.paramsStr(ev))
 		return
 	}
 	if v.instrNum > 2000 {
-		fmt.Fprintf(v.instrument.sc.buffer, `, [\n_free, %d]`, v.instrNum)
+		//fmt.Fprintf(v.instrument.sc.buffer, `, [\n_free, %d]`, v.instrNum)
+		fmt.Fprintf(v.instrument.sc, `, [\n_free, %d]`, v.instrNum)
 	}
-	v.instrNum = v.instrument.sc.instrNumber
+	//v.instrNum = v.instrument.sc.instrNumber
+	v.instrNum = instrnum
 
 	if v.mute {
 		return
@@ -107,7 +136,8 @@ func (v *voice) On(ev *Event) {
 		group = v.group.Id()
 	}
 
-	fmt.Fprintf(v.instrument.sc.buffer, `, [\s_new, \%s, %d, 1, %d%s]`, v.instrument.name, v.instrNum, group, v.paramsStr(ev))
+	//fmt.Fprintf(v.instrument.sc.buffer, `, [\s_new, \%s, %d, 1, %d%s]`, v.instrument.name, v.instrNum, group, v.paramsStr(ev))
+	fmt.Fprintf(v.instrument.sc, `, [\s_new, \%s, %d, 1, %d%s]`, v.instrument.name, v.instrNum, group, v.paramsStr(ev))
 }
 
 func (v *voice) Change(ev *Event) {
@@ -125,21 +155,25 @@ func (v *voice) Change(ev *Event) {
 
 			switch pre {
 			case "_map":
-				fmt.Fprintf(v.instrument.sc.buffer, `, [\n_map, %d, \%s, %d]`, v.instrNum, param, int(val))
+				// fmt.Fprintf(v.instrument.sc.buffer, `, [\n_map, %d, \%s, %d]`, v.instrNum, param, int(val))
+				fmt.Fprintf(v.instrument.sc, `, [\n_map, %d, \%s, %d]`, v.instrNum, param, int(val))
 			case "_mapa":
-				fmt.Fprintf(v.instrument.sc.buffer, `, [\n_mapa, %d, \%s, %d]`, v.instrNum, param, int(val))
+				// fmt.Fprintf(v.instrument.sc.buffer, `, [\n_mapa, %d, \%s, %d]`, v.instrNum, param, int(val))
+				fmt.Fprintf(v.instrument.sc, `, [\n_mapa, %d, \%s, %d]`, v.instrNum, param, int(val))
 			default:
 				panic("unknown special parameter must be '_map-[key] or _mapa-[key]")
 			}
 
 		}
 	}
-	fmt.Fprintf(v.instrument.sc.buffer, `, [\n_set, %d%s]`, v.instrNum, v.paramsStr(ev))
+	//fmt.Fprintf(v.instrument.sc.buffer, `, [\n_set, %d%s]`, v.instrNum, v.paramsStr(ev))
+	fmt.Fprintf(v.instrument.sc, `, [\n_set, %d%s]`, v.instrNum, v.paramsStr(ev))
 }
 
 func (v *voice) Off(ev *Event) {
 	//fmt.Fprintf(v.instrument.sc.buffer, `, [\n_set, %d, \gate, 0]`, v.instrNum)
-	fmt.Fprintf(v.instrument.sc.buffer, `, [\n_set, %d, \gate, -1]`, v.instrNum)
+	//fmt.Fprintf(v.instrument.sc.buffer, `, [\n_set, %d, \gate, -1]`, v.instrNum)
+	fmt.Fprintf(v.instrument.sc, `, [\n_set, %d, \gate, -1]`, v.instrNum)
 }
 
 func (v *voice) Mute(*Event)   { v.mute = true }

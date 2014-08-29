@@ -1,7 +1,7 @@
 package music
 
 type Instrument interface {
-	New(num int) []Voice
+	Voices(num int) []Voice
 	Name() string
 }
 
@@ -59,6 +59,9 @@ func Params(parameter ...Parameter) Parameter {
 	params := map[string]float64{}
 
 	for _, p := range parameter {
+		if p == nil {
+			continue
+		}
 		for k, v := range p.Params() {
 			params[k] = v
 		}

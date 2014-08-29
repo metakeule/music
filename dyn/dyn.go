@@ -13,6 +13,10 @@ func (d dyn) String() string {
 	return d.name
 }
 
+func (d dyn) Value() float64 {
+	return d.value
+}
+
 func (d dyn) Params() map[string]float64 {
 	return Dyn(d.value).Params()
 }

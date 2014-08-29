@@ -15,11 +15,11 @@ type Event struct {
 	// parameters that might be modified by ParamModifiers
 	Params map[string]float64
 	// modifiers, such as returning a frequency for a position in a scale
-	ParamModifiers map[string]func(float64) float64
-	Runner         func(*Event)
-	Type           string
-	Tick           uint
-	AbsPosition    Measure
+	// ParamModifiers map[string]func(float64) float64
+	Runner      func(*Event)
+	Type        string
+	Tick        uint
+	AbsPosition Measure
 	//Duration       Measure
 }
 
@@ -28,10 +28,10 @@ var start = &Event{Runner: func(*Event) {}, Type: "start"}
 
 func newEvent(v Voice, type_ string) *Event {
 	return &Event{
-		Voice:          v,
-		Params:         map[string]float64{},
-		ParamModifiers: map[string]func(float64) float64{},
-		Type:           type_,
+		Voice:  v,
+		Params: map[string]float64{},
+		// ParamModifiers: map[string]func(float64) float64{},
+		Type: type_,
 	}
 }
 
@@ -76,20 +76,26 @@ func (ev *Event) ChangeMerged(voice Voice, ps ...Parameter) *Event {
 }
 
 func (ev *Event) FinalParams() map[string]float64 {
-	res := map[string]float64{}
-
-	for k, v := range ev.Params {
-		modifier, exists := ev.ParamModifiers[k]
-		if exists {
-			v = modifier(v)
+	/*
+		res := map[string]float64{}
+		for k, v := range ev.Params {
+			modifier, exists := ev.ParamModifiers[k]
+			if exists {
+				v = modifier(v)
+			}
+			res[k] = v
 		}
-		res[k] = v
+		return res
+	*/
+	if ev.Params == nil {
+		return map[string]float64{}
 	}
-	return res
+	return ev.Params
 }
 
 func (ev *Event) Clone() *Event {
-	n := &Event{Voice: ev.Voice, Runner: ev.Runner, ParamModifiers: ev.ParamModifiers}
+	//n := &Event{Voice: ev.Voice, Runner: ev.Runner, ParamModifiers: ev.ParamModifiers}
+	n := &Event{Voice: ev.Voice, Runner: ev.Runner}
 	n.Type = ev.Type
 	n.AbsPosition = ev.AbsPosition
 	//n.Duration = ev.Duration
@@ -114,11 +120,11 @@ func On(v Voice, params ...Parameter) *Event {
 
 	}
 	return &Event{
-		Voice:          v,
-		Params:         p,
-		ParamModifiers: map[string]func(float64) float64{},
-		Runner:         v.On,
-		Type:           "ON",
+		Voice:  v,
+		Params: p,
+		// ParamModifiers: map[string]func(float64) float64{},
+		Runner: v.On,
+		Type:   "ON",
 	}
 }
 
@@ -158,10 +164,10 @@ func Change(v Voice, params ...Parameter) *Event {
 
 	}
 	return &Event{
-		Voice:          v,
-		Params:         p,
-		ParamModifiers: map[string]func(float64) float64{},
-		Runner:         v.Change,
-		Type:           "CHANGE",
+		Voice:  v,
+		Params: p,
+		// ParamModifiers: map[string]func(float64) float64{},
+		Runner: v.Change,
+		Type:   "CHANGE",
 	}
 }

@@ -8,29 +8,36 @@ type sample struct {
 	// func (in *instrument) New(num int) []Voice {
 	num int
 	*instrument
+	name string
 	// offset int
 }
 
 // TODO: fix the issue: each sample needs to start with an upper voice, otherwise
 // all samples using sample1 get on the first voice the same
-func (s *sample) New(num int) []*sampleVoice {
+func (s *sample) Voices(num int) []*sampleVoice {
+	offset := s.instrument.sc.GetSampleOffset(s.name)
+	// fmt.Printf("offset for %s is %v\n", s.name, offset)
 	v := make([]*sampleVoice, num)
 	for i := 0; i < num; i++ {
 		//s.instrument.sc.instrNumber++
-		s.instrument.sc.sampleNumber++
+		//s.instrument.sc.sampleNumber++
+		samplenum := s.instrument.sc.IncrSampleNumber()
 		name := fmt.Sprintf("%s-%d", s.instrument.name, i)
 		vc := &voice{
 			name:       name,
 			instrument: s.instrument,
 			num:        i,
 			// instrNum:   s.instrument.sc.instrNumber,
-			instrNum: s.instrument.sc.sampleNumber,
+			// instrNum: s.instrument.sc.sampleNumber,
+			instrNum: samplenum,
 		}
-		v[i] = &sampleVoice{vc, s, s.offset}
+		v[i] = &sampleVoice{vc, s, s.offset + offset}
 		//s.instrument.sc.voicesToNum[name] = s.instrument.sc.instrNumber
-		s.instrument.sc.voicesToNum[name] = s.instrument.sc.sampleNumber
+		// s.instrument.sc.voicesToNum[name] = s.instrument.sc.sampleNumber
+		s.instrument.sc.SetVoiceToNum(name, samplenum)
 		// s.instrument.sc.numToVoices[s.instrument.sc.instrNumber] = vc
-		s.instrument.sc.numToVoices[s.instrument.sc.sampleNumber] = vc
+		// s.instrument.sc.numToVoices[s.instrument.sc.sampleNumber] = vc
+		s.instrument.sc.SetNumToVoices(samplenum, vc)
 	}
 	return v
 }
@@ -61,17 +68,23 @@ func (v *sampleVoice) Modify(pos string, params ...Parameter) Pattern {
 // and then immediatly use it. the question is, if that works out in NRT and if it works when its loaded and used in the
 // same command - trial and error
 func (sv *sampleVoice) On(ev *Event) {
-	sv.voice.instrument.sc.instrNumber++
+	sv.voice.instrument.sc.UseSample(sv.sample.name)
+
+	//sv.voice.instrument.sc.instrNumber++
+	instrnum := sv.voice.instrument.sc.IncrInstrNumber()
 	if sv.voice.instrNum > 2000 {
-		fmt.Fprintf(sv.voice.instrument.sc.buffer, `, [\n_free, %d]`, sv.voice.instrNum)
+		//fmt.Fprintf(sv.voice.instrument.sc.buffer, `, [\n_free, %d]`, sv.voice.instrNum)
+		fmt.Fprintf(sv.voice.instrument.sc, `, [\n_free, %d]`, sv.voice.instrNum)
 	}
 
-	sv.voice.instrNum = sv.voice.instrument.sc.instrNumber
+	//sv.voice.instrNum = sv.voice.instrument.sc.instrNumber
+	sv.voice.instrNum = instrnum
 	if sv.voice.mute {
 		return
 	}
 	fmt.Fprintf(
-		sv.voice.instrument.sc.buffer,
+		//sv.voice.instrument.sc.buffer,
+		sv.voice.instrument.sc,
 		//`, [\s_new, \%s, %d, 0, 0, \bufnum, b.sample%d%s]`,
 		`, [\s_new, \%s, %d, 0, 0, \bufnum, %d%s]`,
 		//`, [\s_new, \%s, -1, 0, 0, \bufnum, %d%s]`,

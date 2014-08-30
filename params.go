@@ -2,7 +2,7 @@ package music
 
 import "math/rand"
 
-func Random1(pos string, v Voice, key string, add float64, m ...Parameter) *randomized {
+func Random1(pos string, v *Voice, key string, add float64, m ...Parameter) *randomized {
 	return &randomized{
 		Voice:     v,
 		vals:      Params(m...).Params(),
@@ -13,7 +13,7 @@ func Random1(pos string, v Voice, key string, add float64, m ...Parameter) *rand
 }
 
 type randomized struct {
-	Voice
+	*Voice
 	vals      map[string]float64
 	randomKey string
 	randomAdd float64
@@ -100,4 +100,10 @@ type Rate float64
 
 func (f Rate) Params() map[string]float64 {
 	return map[string]float64{"rate": float64(f)}
+}
+
+type Offset float64
+
+func (f Offset) Params() map[string]float64 {
+	return map[string]float64{"offset": float64(f)}
 }

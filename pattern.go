@@ -52,7 +52,7 @@ func SeqeuenceModify(v Voice, paramSeq ...Parameter) *seqMod {
 type seqPlay struct {
 	seq        []Parameter
 	initParams Parameter
-	v          Voice
+	v          *Voice
 	Pos        int
 }
 
@@ -71,7 +71,7 @@ type seqPlayTrafo struct {
 	overrideParams Parameter
 }
 
-func ParamSequence(v Voice, initParams Parameter, paramSeq ...Parameter) *seqPlay {
+func ParamSequence(v *Voice, initParams Parameter, paramSeq ...Parameter) *seqPlay {
 	return &seqPlay{
 		initParams: initParams,
 		seq:        paramSeq,
@@ -95,11 +95,11 @@ func (spt *seqPlayTrafo) Pattern(tr Tracker) {
 
 type play struct {
 	pos Measure
-	Voice
+	*Voice
 	Params Parameter
 }
 
-func Play(pos string, v Voice, params ...Parameter) *play {
+func Play(pos string, v *Voice, params ...Parameter) *play {
 	return &play{M(pos), v, Params(params...)}
 }
 
@@ -111,11 +111,11 @@ func (p *play) Pattern(t Tracker) {
 type playDur struct {
 	pos Measure
 	dur Measure
-	Voice
+	*Voice
 	Params Parameter
 }
 
-func PlayDur(pos, dur string, v Voice, params ...Parameter) *playDur {
+func PlayDur(pos, dur string, v *Voice, params ...Parameter) *playDur {
 	return &playDur{M(pos), M(dur), v, Params(params...)}
 }
 
@@ -128,7 +128,7 @@ func (p *playDur) Pattern(t Tracker) {
 type exec_ struct {
 	pos   Measure
 	fn    func(e *Event)
-	voice Voice
+	voice *Voice
 	type_ string
 }
 
@@ -138,16 +138,16 @@ func (e *exec_) Pattern(t Tracker) {
 	t.At(e.pos, ev)
 }
 
-func Exec(pos string, v Voice, type_ string, fn func(t *Event)) Pattern {
+func Exec(pos string, v *Voice, type_ string, fn func(t *Event)) Pattern {
 	return &exec_{M(pos), fn, v, type_}
 }
 
 type stop struct {
 	pos Measure
-	Voice
+	*Voice
 }
 
-func Stop(pos string, v Voice) *stop {
+func Stop(pos string, v *Voice) *stop {
 	return &stop{M(pos), v}
 }
 
@@ -174,10 +174,10 @@ func (s Start) Pattern(t Tracker) {
 
 type stopAll struct {
 	pos    Measure
-	Voices []Voice
+	Voices []*Voice
 }
 
-func StopAll(pos string, vs ...[]Voice) *stopAll {
+func StopAll(pos string, vs ...[]*Voice) *stopAll {
 	s := &stopAll{pos: M(pos)}
 
 	for _, v := range vs {
@@ -208,11 +208,11 @@ func (s *setTempo) Pattern(t Tracker) {
 
 type mod struct {
 	pos Measure
-	Voice
+	*Voice
 	Params Parameter
 }
 
-func Modify(pos string, v Voice, params ...Parameter) *mod {
+func Modify(pos string, v *Voice, params ...Parameter) *mod {
 	return &mod{M(pos), v, Params(params...)}
 }
 
@@ -340,13 +340,13 @@ func LinearDistribution(param string, from, to float64, n int, dur Measure) *lin
 	return &linearDistribute{from, to, n, dur, param}
 }
 
-func (l *linearDistribute) ModifyDistributed(position string, v Voice) Pattern {
+func (l *linearDistribute) ModifyDistributed(position string, v *Voice) Pattern {
 	return &linearDistributeTrafo{l, v, M(position)}
 }
 
 type linearDistributeTrafo struct {
 	*linearDistribute
-	v   Voice
+	v   *Voice
 	pos Measure
 }
 
@@ -380,13 +380,13 @@ func ExponentialDistribution(param string, from, to float64, n int, dur Measure)
 	return &expDistribute{from, to, n, dur, param}
 }
 
-func (l *expDistribute) ModifyDistributed(position string, v Voice) Pattern {
+func (l *expDistribute) ModifyDistributed(position string, v *Voice) Pattern {
 	return &expDistributeTrafo{l, v, M(position)}
 }
 
 type expDistributeTrafo struct {
 	*expDistribute
-	v   Voice
+	v   *Voice
 	pos Measure
 }
 

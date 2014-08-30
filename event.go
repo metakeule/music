@@ -1,5 +1,7 @@
 package music
 
+import "bytes"
+
 type Parameter interface {
 	Params() map[string]float64
 }
@@ -10,6 +12,18 @@ func (p ParamsMap) Params() map[string]float64 {
 	return map[string]float64(p)
 }
 
+type Event struct {
+	Voice       *Voice
+	Params      map[string]float64 // a special parameter offset may be used to set a per event offset
+	Runner      func(*Event)
+	Type        string
+	Tick        uint
+	AbsPosition Measure // will be enabled when integrated
+	Offset      float64 // offset added to the final position (includes instrument and sample offsets as well as offset set via parameter)
+	SCCode      bytes.Buffer
+}
+
+/*
 type Event struct {
 	Voice Voice
 	// parameters that might be modified by ParamModifiers
@@ -22,11 +36,12 @@ type Event struct {
 	AbsPosition Measure
 	//Duration       Measure
 }
+*/
 
 var fin = &Event{Runner: func(*Event) {}, Type: "fin"}
 var start = &Event{Runner: func(*Event) {}, Type: "start"}
 
-func newEvent(v Voice, type_ string) *Event {
+func newEvent(v *Voice, type_ string) *Event {
 	return &Event{
 		Voice:  v,
 		Params: map[string]float64{},
@@ -40,7 +55,7 @@ func newEvent(v Voice, type_ string) *Event {
 // may be used with events that have modifiers, like Scale, Rhythm etc
 // the given voice is set and we get an On event
 //func (ev *Event) OnMerged(voice Voice, m map[string]float64) *Event {
-func (ev *Event) OnMerged(voice Voice, ps ...Parameter) *Event {
+func (ev *Event) OnMerged(voice *Voice, ps ...Parameter) *Event {
 	n := ev.Clone()
 
 	for _, p := range ps {
@@ -60,7 +75,7 @@ func (ev *Event) OnMerged(voice Voice, ps ...Parameter) *Event {
 // may be used with events that have modifiers, like Scale, Rhythm etc
 // the given voice is set and we get a change event
 //func (ev *Event) ChangeMerged(voice Voice, m map[string]float64) *Event {
-func (ev *Event) ChangeMerged(voice Voice, ps ...Parameter) *Event {
+func (ev *Event) ChangeMerged(voice *Voice, ps ...Parameter) *Event {
 	n := ev.Clone()
 
 	for _, p := range ps {
@@ -109,7 +124,7 @@ func (ev *Event) Clone() *Event {
 }
 
 //func On(v Voice, params ...map[string]float64) *Event {
-func On(v Voice, params ...Parameter) *Event {
+func On(v *Voice, params ...Parameter) *Event {
 	p := map[string]float64{}
 
 	for _, ps := range params {
@@ -128,7 +143,7 @@ func On(v Voice, params ...Parameter) *Event {
 	}
 }
 
-func Off(v Voice) *Event {
+func Off(v *Voice) *Event {
 	return &Event{
 		Voice:  v,
 		Runner: v.Off,
@@ -136,7 +151,7 @@ func Off(v Voice) *Event {
 	}
 }
 
-func Mute(v Voice) *Event {
+func Mute(v *Voice) *Event {
 	return &Event{
 		Voice:  v,
 		Runner: v.Mute,
@@ -144,7 +159,7 @@ func Mute(v Voice) *Event {
 	}
 }
 
-func UnMute(v Voice) *Event {
+func UnMute(v *Voice) *Event {
 	return &Event{
 		Voice:  v,
 		Runner: v.UnMute,
@@ -153,7 +168,7 @@ func UnMute(v Voice) *Event {
 }
 
 //func Change(v Voice, params ...map[string]float64) *Event {
-func Change(v Voice, params ...Parameter) *Event {
+func Change(v *Voice, params ...Parameter) *Event {
 	p := map[string]float64{}
 
 	for _, ps := range params {

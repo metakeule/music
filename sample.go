@@ -1,5 +1,6 @@
 package music
 
+/*
 import (
 	"fmt"
 )
@@ -108,6 +109,7 @@ var sampleLoader = `SynthDef("sample%d", { |gate=1,bufnum = 0,amp=1, out=0, pan=
 	FreeSelfWhenDone.kr(z);
 	Out.ar(out, Pan2.ar(z, pos: pan, level: amp));
 } )`
+*/
 
 /*
 func (sv *sampleVoice) Off(ev *Event) {

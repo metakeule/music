@@ -1,9 +1,53 @@
 package music
 
+type CodeLoader interface {
+	LoadCode() []byte
+	IsUsed() bool
+	Use()
+}
+
+// the outer invoker may use the first voices instrument to query loadcode etc
+func NewRoute(g Generator, name, path string, numVoices int) []*Voice {
+	instr := &SCInstrument{
+		name: name,
+		Path: path,
+	}
+	return Voices(numVoices, g, instr, 1200)
+}
+
+type Bus int
+
+func (b Bus) Name() string {
+	return "bushub"
+}
+
+var bushub = Bus(0)
+var busses = map[string]int{}
+
+func NewBus(g Generator, name string) *Voice {
+	if _, has := busses[name]; has {
+		panic("bus with name " + name + " already defined")
+	}
+	busses[name] = g.NewBusId()
+	return &Voice{Generator: g, Instrument: bushub, Bus: busses[name]}
+}
+
+type Group struct{}
+
+func (g Group) Name() string {
+	return "group"
+}
+
+func NewGroup(g Generator) *Voice {
+	return &Voice{Generator: g, Instrument: Group{}, SCGroup: g.NewGroupId()}
+}
+
+/*
 import (
 	"bytes"
 	"fmt"
 )
+*/
 
 /*
 /g_new - create a new group
@@ -20,12 +64,14 @@ fmt.Fprintf(v.instrument.sc.buffer, `, [\g_new, \%d, 1, \%d]`, v.instrument.name
 
 */
 
+/*
 type group struct {
 	sc     scer
 	id     int
 	name   string
 	parent int
 }
+*/
 
 /*
 func (g *group) Id(name string) int {
@@ -37,6 +83,7 @@ func (g *group) Id(name string) int {
 }
 */
 
+/*
 func (g *group) Id() int {
 	return g.id
 }
@@ -99,3 +146,4 @@ func (s *sc) Group(name string, parentGroup *group) *group {
 	s.groups = append(s.groups, g)
 	return g
 }
+*/

@@ -1,5 +1,6 @@
 package music
 
+/*
 type Instrument interface {
 	Voices(num int) []Voice
 	Name() string
@@ -15,6 +16,7 @@ type Voice interface {
 	Offset() int // offset in millisecs, may be negative
 	EventPlayer
 }
+*/
 
 type Scale interface {
 	Degree(degree int) Parameter
@@ -69,17 +71,17 @@ func Params(parameter ...Parameter) Parameter {
 	return ParamsMap(params)
 }
 
-func Metronome(voice Voice, unit Measure, parameter ...Parameter) *metronome {
+func Metronome(voice *Voice, unit Measure, parameter ...Parameter) *metronome {
 	return &metronome{voice: voice, unit: unit, eventProps: Params(parameter...)}
 }
 
-func Bar(voice Voice, parameter ...Parameter) *bar {
+func Bar(voice *Voice, parameter ...Parameter) *bar {
 	return &bar{voice: voice, eventProps: Params(parameter...)}
 }
 
 type metronome struct {
 	last       Measure
-	voice      Voice
+	voice      *Voice
 	unit       Measure
 	eventProps Parameter
 }
@@ -94,7 +96,7 @@ func (m *metronome) Pattern(t Tracker) {
 }
 
 type bar struct {
-	voice      Voice
+	voice      *Voice
 	counter    float64
 	eventProps Parameter
 }

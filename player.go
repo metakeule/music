@@ -13,7 +13,9 @@ func (p Player) PlayWithOffset(startOffset uint) {
 }
 */
 
-func millisecsToTick(ms int) int { return ms * 1000000 }
+func millisecsToTick(ms float64) int {
+	return int(RoundFloat(ms*1000000.0, 0))
+}
 
 func tickToSeconds(tick int) float32 { return float32(tick) / float32(1000000000) }
 

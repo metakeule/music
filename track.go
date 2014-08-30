@@ -54,7 +54,7 @@ func (t *Track) Print(tempo Tempo, unit string, wr io.Writer) {
 	}
 	// events must be sorted by tick
 	// Voice => Tick => Even
-	voiceLines := map[Voice]map[int]*Event{}
+	voiceLines := map[*Voice]map[int]*Event{}
 	for _, ev := range t.Events {
 		// ev.Runner(ev)
 		// fmt.Printf("%v %v %v\n", ev.Tick, ev.Type, ev.Voice.Name())

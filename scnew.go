@@ -1,9 +1,7 @@
 package music
 
-/*
 import (
 	"bytes"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -23,28 +21,40 @@ var scoreFile = flag.String("score", "", "file to put the score to (must be .scd
 var writeSynthDefs = flag.Bool("write-synthdefs", false, "write synthdefs in scserver mode")
 var loadSamples = flag.Bool("load-samples", false, "load samples in scserver mode")
 
+var _ Generator = &sc{}
+
 func New() *sc {
 	s := &sc{
 		// osc:         &sclang.OscClient{},
 		instrNumber: 2000,
 		// sampleNumber:    4000,
-		sampleInstNumber: 4000,
-		voicesToNum:      map[string]int{},
-		numToVoices:      map[int]Voice{},
-		synthdefs:        map[string][]byte{},
-		samples:          map[string]int{},
-		samplesChannels:  map[string]int{},
-		AudioFile:        "",
-		busses:           map[string]int{},
-		busNumber:        16,
-		groupNumber:      1012,
-		groups:           []*group{},
-		usedSamples:      map[string]struct{}{},
-		usedInstruments:  map[string]struct{}{},
+		//sampleInstNumber: 4000,
+		sampleInstNumber: 0,
+		/*
+			voicesToNum:      map[string]int{},
+			numToVoices:      map[int]Voice{},
+		*/
+		synthdefs: map[string][]byte{},
+		/*
+			samples:          map[string]int{},
+			samplesChannels:  map[string]int{},
+		*/
+		AudioFile: "",
+		// busses:           map[string]int{},
+		busNumber:   16,
+		groupNumber: 1012,
+		groups:      map[int]int{},
+		/*
+			groups:           []*group{},
+			usedSamples:      map[string]struct{}{},
+			usedInstruments:  map[string]struct{}{},
+		*/
 		// groupsByName:     map[string]int{},
 	}
-	s.scForInstr = &scForInstrument{sc: s}
-	s.Bus = &bus{s.scForInstr}
+	/*
+		s.scForInstr = &scForInstrument{sc: s}
+		s.Bus = &bus{s.scForInstr}
+	*/
 	flag.Parse()
 	if audioFile != nil {
 		s.AudioFile = *audioFile
@@ -61,41 +71,62 @@ func New() *sc {
 	return s
 }
 
-type sc struct {
-	buffer           *bytes.Buffer
-	synthdefs        map[string][]byte
-	sampleDir        string
-	instrNumber      int
-	sampleNumber     int
-	sampleInstNumber int
-	samples          map[string]int
-	samplesChannels  map[string]int
-	voicesToNum      map[string]int
-	numToVoices      map[int]Voice
-	AudioFile        string
-	ScoreFile        string
-	busses           map[string]int
-	busNumber        int
-	Bus              *bus
-	WriteSynthDefs   bool
-	LoadSamples      bool
-	groupNumber      int
-	groups           []*group
-	scServerOnline   bool
-	tracks           []*Track
-	scForInstr       *scForInstrument
-	usedSamples      map[string]struct{}
-	usedInstruments  map[string]struct{}
-	synthDefDirs     []string
-	// groupsByName     map[string]int
+func (s *sc) NewBusId() int {
+	s.busNumber++
+	return s.busNumber
 }
-*/
+
+func (s *sc) NewGroupId() int {
+	s.groupNumber++
+	return s.groupNumber
+}
+
+func (s *sc) NewNodeId() int {
+	s.instrNumber++
+	return s.instrNumber
+}
+
+func (s *sc) NewSampleBuffer() int {
+	s.sampleInstNumber++
+	return s.sampleInstNumber
+}
+
+type sc struct {
+	buffer      *bytes.Buffer
+	eventbuffer *bytes.Buffer
+	synthdefs   map[string][]byte
+	// sampleDir        string
+	instrNumber int
+	// sampleNumber     int
+	sampleInstNumber int
+	// samples          map[string]int
+	// samplesChannels  map[string]int
+	// voicesToNum      map[string]int
+	// numToVoices      map[int]Voice
+	AudioFile string
+	ScoreFile string
+	// busses           map[string]int
+	busNumber int
+	// Bus              *bus
+	WriteSynthDefs bool
+	LoadSamples    bool
+	groupNumber    int
+	// groups           []*group
+	scServerOnline bool
+	tracks         []*Track
+	// scForInstr       *scForInstrument
+	// usedSamples      map[string]struct{}
+	// usedInstruments  map[string]struct{}
+	synthDefDirs []string
+	// groupsByName     map[string]int
+	instruments []Instrument
+	groups      map[int]int
+}
+
 /*
 bar string, tempo Tempo, tr ...Transformer) *Track {
 	//t := NewTrack(BPM(120), M(bar))
 */
-
-/*
 func (s *sc) Track(bar string, tempo Tempo, patterns ...Pattern) *Track {
 	tr := newTrack(tempo, M(bar))
 	tr.Patterns(patterns...)
@@ -103,6 +134,7 @@ func (s *sc) Track(bar string, tempo Tempo, patterns ...Pattern) *Track {
 	return tr
 }
 
+/*
 func (s *sc) SetSampleDir(p string) {
 	s.sampleDir = p
 }
@@ -170,15 +202,54 @@ func (s *scForInstrument) GetBus(name string) int {
 	}
 	return busno
 }
+*/
 
-func (s *sc) Instrument(name string, offset int) Instrument {
-	return &instrument{name: name, sc: s.scForInstr, offset: offset}
+//func (s *sc) Instrument(name string, offset int) Instrument {
+func (s *sc) Instrument(name string, path string, numVoices int) []*Voice {
+	if numVoices < 1 {
+		panic("minimum for numVoices: 1")
+	}
+	vs := NewSCInstrument(s, name, path, numVoices)
+	s.instruments = append(s.instruments, vs[0].Instrument)
+	return vs
+	// return &instrument{name: name, sc: s.scForInstr, offset: offset}
 }
 
-func (s *sc) Route(name string) Instrument {
-	return &instrument{name: name, sc: s.scForInstr, bus: true}
+func (s *sc) SampleInstrument(instrument string, sampleLib SampleLibrary, numVoices int) []*Voice {
+	vs := NewSCSampleInstrument(s, instrument, sampleLib, numVoices)
+	s.instruments = append(s.instruments, vs[0].Instrument)
+	return vs
 }
 
+func (s *sc) Route(name, path string, numVoices int) []*Voice {
+	if numVoices < 1 {
+		panic("minimum for numVoices: 1")
+	}
+	vs := NewRoute(s, name, path, numVoices)
+	s.instruments = append(s.instruments, vs[0].Instrument)
+	return vs
+	// return &instrument{name: name, sc: s.scForInstr, bus: true}
+}
+
+func (s *sc) Sample(path string, numVoices int) []*Voice {
+	if numVoices < 1 {
+		panic("minimum for numVoices: 1")
+	}
+	vs := NewSCSample(s, path, numVoices)
+	s.instruments = append(s.instruments, vs[0].Instrument)
+	return vs
+}
+
+func (s *sc) SampleFreq(path string, freq float64, numVoices int) []*Voice {
+	if numVoices < 1 {
+		panic("minimum for numVoices: 1")
+	}
+	vs := NewSCSampleFreq(s, path, freq, numVoices)
+	s.instruments = append(s.instruments, vs[0].Instrument)
+	return vs
+}
+
+/*
 func (s *sc) Sample(name string, numChan int, offset int) *sample {
 	if len(s.samples) == 0 {
 		s.instrNumber++
@@ -195,7 +266,31 @@ func (s *sc) Sample(name string, numChan int, offset int) *sample {
 	//return &sample{s.sampleNumber, &instrument{"sample" + name[:idx], s}}
 	return &sample{s.sampleNumber, &instrument{offset: offset, name: fmt.Sprintf("sample%d", numChan), sc: s.scForInstr}, name}
 }
+*/
 
+func (s *sc) Group(parent int) *Voice {
+	v := NewGroup(s)
+	s.groups[v.SCGroup] = parent
+	return v
+}
+
+func (s *sc) Bus(name string, numchannels int) *Voice {
+	v := NewBus(s, name)
+
+	// no := s.busNumber + 1
+	s.busNumber += numchannels
+	/*
+		_, exists := s.busses[name]
+		if exists {
+			panic("bus " + name + " already defined")
+		}
+		s.busses[name] = no
+		return no
+	*/
+	return v
+}
+
+/*
 func (s *sc) NewBus(name string, numchannels int) int {
 	no := s.busNumber + 1
 	s.busNumber += numchannels
@@ -206,6 +301,7 @@ func (s *sc) NewBus(name string, numchannels int) int {
 	s.busses[name] = no
 	return no
 }
+*/
 
 func (s *sc) LoadSynthDefPool() {
 	home := os.Getenv("HOME")
@@ -217,29 +313,29 @@ func (s *sc) LoadSynthDefPool() {
 func (s *sc) LoadSynthDefs(p string) {
 	s.synthDefDirs = append(s.synthDefDirs, p)
 	return
+	/*
+		f, err := os.Open(p)
+		if err != nil {
+			fmt.Println("can't load synthdefs from ", p, ": ", err.Error())
+			return
+		}
 
-	f, err := os.Open(p)
-	if err != nil {
-		fmt.Println("can't load synthdefs from ", p, ": ", err.Error())
-		return
-	}
+		files, e := f.Readdir(-1)
 
-	files, e := f.Readdir(-1)
+		if e != nil {
+			fmt.Println("can't load synthdefs from ", p, ": ", e.Error())
+			return
+		}
 
-	if e != nil {
-		fmt.Println("can't load synthdefs from ", p, ": ", e.Error())
-		return
-	}
-
-	for _, file := range files {
-		if !file.IsDir() {
-			data, er := ioutil.ReadFile(filepath.Join(p, file.Name()))
-			if er == nil {
-				s.synthdefs[file.Name()] = data
+		for _, file := range files {
+			if !file.IsDir() {
+				data, er := ioutil.ReadFile(filepath.Join(p, file.Name()))
+				if er == nil {
+					s.synthdefs[file.Name()] = data
+				}
 			}
 		}
-	}
-
+	*/
 }
 
 func (s *sc) loadSynthDefInDir(dir string, synthdef string) ([]byte, error) {
@@ -257,13 +353,25 @@ func (s *sc) loadSynthDef(synthdef string) []byte {
 }
 
 func (s *sc) writeSynthDefs(w io.Writer) {
+	for _, instr := range s.instruments {
+		switch t := instr.(type) {
+		case *SCInstrument:
+			if t.IsUsed() {
+				sdef := s.loadSynthDef(t.Name())
+				fmt.Fprintf(w, strings.TrimSpace(string(sdef))+".writeDefFile;")
+			}
+		}
+	}
+}
+
+/*
+func (s *sc) writeSynthDefs(w io.Writer) {
 
 	for instr := range s.usedInstruments {
 		sdef := s.loadSynthDef(instr)
 		fmt.Fprintf(w, strings.TrimSpace(string(sdef))+".writeDefFile;")
 	}
 */
-
 /*
 	for name, sdef := range s.synthdefs {
 		_, has := s.usedInstruments[name]
@@ -274,9 +382,29 @@ func (s *sc) writeSynthDefs(w io.Writer) {
 		fmt.Fprintf(w, strings.TrimSpace(string(sdef))+".writeDefFile;")
 	}
 */
-/*
+// }
+
+func (s *sc) writeLoadSamples(w io.Writer) {
+	channelPlayers := map[uint]struct{}{}
+
+	for _, instr := range s.instruments {
+		switch t := instr.(type) {
+		case *SCSample:
+			if t.IsUsed() {
+				if _, has := channelPlayers[t.Sample.Channels]; !has {
+					fmt.Fprintf(w, strings.TrimSpace(string(t.LoadCode())))
+				}
+			}
+		case *SCSampleInstrument:
+			if len(t.Samples) > 0 {
+				fmt.Fprintf(w, strings.TrimSpace(string(t.LoadCode())))
+			}
+		}
+	}
+
 }
 
+/*
 func (s *sc) writeLoadSamples(w io.Writer) {
 	// fmt.Printf("used samples: %#v\n", s.usedSamples)
 	//for sampleName, sampleId := range s.samples {
@@ -309,6 +437,7 @@ func (s *sc) writeLoadSamples(w io.Writer) {
 		}
 	}
 }
+*/
 
 type eventWriterOptions struct {
 	startOffset  uint
@@ -342,7 +471,8 @@ func (s *sc) writeEvents(w io.Writer, opts eventWriterOptions) (skipSecs float32
 		// inSecs := tickToSeconds(ti+(tickNegative*(-1))) + 0.000001 + beginOffset
 		fmt.Fprintf(w, `  [%0.6f`, inSecs)
 		for _, ev := range opts.tickMapped[ti] {
-			ev.Runner(ev)
+			// ev.Runner(ev)
+			fmt.Fprintf(w, ev.SCCode.String())
 		}
 		t = ti
 		fmt.Fprintf(w, "],\n")
@@ -352,6 +482,7 @@ func (s *sc) writeEvents(w io.Writer, opts eventWriterOptions) (skipSecs float32
 	return
 }
 
+/*
 func (s *sc) writeAtPosZero(w io.Writer) {
 	// fmt.Printf("used samples: %#v\n", s.usedSamples)
 	fmt.Fprintf(w, `  [%0.6f, `, 0.0)
@@ -383,6 +514,47 @@ func (s *sc) writeAtPosZero(w io.Writer) {
 		fmt.Fprintf(w, fmt.Sprintf(`[\b_allocRead, %d, "%s"]`, sampleId, fullpath))
 	}
 
+	fmt.Fprintf(w, "],\n")
+
+}
+*/
+
+func (s *sc) writeAtPosZero(w io.Writer) {
+	// fmt.Printf("used samples: %#v\n", s.usedSamples)
+	fmt.Fprintf(w, `  [%0.6f, `, 0.0)
+
+	// create the bus routing group
+	fmt.Fprintf(w, fmt.Sprintf(`[\g_new, %d, 0, 0],`, 1200))
+	// create the instruments group
+	fmt.Fprintf(w, fmt.Sprintf(`[\g_new, %d, 0, 0],`, 1010))
+
+	for groupId, groupParent := range s.groups {
+		fmt.Fprintf(w, `[\g_new, %d, 1, %d], `, groupId, groupParent)
+	}
+
+	first_sample := true
+
+	for _, instr := range s.instruments {
+		switch t := instr.(type) {
+		case *SCSample:
+			if t.IsUsed() {
+				if !first_sample {
+					fmt.Fprintf(w, ", ")
+				}
+				first_sample = false
+				fmt.Fprintf(w, fmt.Sprintf(`[\b_allocRead, %d, "%s"]`, t.Sample.SCBuffer, t.Sample.Path))
+			}
+		case *SCSampleInstrument:
+			for _, sample := range t.Samples {
+				if !first_sample {
+					fmt.Fprintf(w, ", ")
+				}
+				first_sample = false
+				fmt.Fprintf(w, fmt.Sprintf(`[\b_allocRead, %d, "%s"]`, sample.SCBuffer, sample.Path))
+			}
+		}
+
+	}
 	fmt.Fprintf(w, "],\n")
 
 }
@@ -433,9 +605,14 @@ func (s *sc) Play(startOffset uint) {
 
 	for _, ev := range evts {
 		currTick := int(ev.Tick)
+		ev.Runner(ev)
 		if ev.Type == "ON" {
 			// Todo calculation ms back to ticks
-			currTick = millisecsToTick(ev.Voice.Offset()) + currTick
+			currTick = millisecsToTick(ev.Offset) + currTick
+		}
+		if ev.Type == "CHANGE" {
+			// Todo calculation ms back to ticks
+			currTick = millisecsToTick(ev.Offset) + currTick
 		}
 		//tickMapped[int(ev.Tick)] = append(tickMapped[int(ev.Tick)], ev)
 		tickMapped[int(currTick)] = append(tickMapped[int(currTick)], ev)
@@ -470,10 +647,11 @@ func (s *sc) Play(startOffset uint) {
 	opts.finTick = finTick
 	opts.tickMapped = tickMapped
 
+	s.eventbuffer = &bytes.Buffer{}
 	// println("before write events")
 	// we have to do the write events before the synthdefs and loadsamples because
 	// we need to run everything to know which samples and synthdefs are needed
-	skipSecs := s.writeEvents(&s.scForInstr.eventBuffer, opts)
+	skipSecs := s.writeEvents(s.eventbuffer, opts)
 	// println("after write events")
 
 	s.buffer = &bytes.Buffer{}
@@ -500,7 +678,7 @@ func (s *sc) Play(startOffset uint) {
 
 	// println("before copy")
 	// s.buffer.Write(s.scForInstr.eventBuffer.Bytes())
-	io.Copy(s.buffer, &s.scForInstr.eventBuffer)
+	io.Copy(s.buffer, s.eventbuffer)
 	// println("after copy")
 
 	// skipSecs := s.writeEvents(s.buffer, opts)
@@ -570,20 +748,18 @@ func getSeconds(tick int, negativeOffset int, offset float32) float32 {
 }
 
 func (s *sc) runBulkScServerCode(code string) error {
-*/
-/*
-	strArr := strings.Split(code, "\n")
+	/*
+		strArr := strings.Split(code, "\n")
 
-	for _, str := range strArr {
-		err := s.runScServerCode(str)
-		if err != nil {
-			return err
+		for _, str := range strArr {
+			err := s.runScServerCode(str)
+			if err != nil {
+				return err
+			}
 		}
-	}
 
-	return nil
-*/
-/*
+		return nil
+	*/
 	// return s.runScServerCode(code)
 	// println(strings.Replace(code, "\n", "", -1))
 	return s.runScServerCode(strings.Replace(code, "\n", "", -1))
@@ -645,30 +821,28 @@ func (s *sc) mkAudiofile(oscCodeFile, audioFile string, exportFloat bool) (ok bo
 	// from http://doc.sccode.org/Classes/SoundFile.html#-sampleFormat
 	// headerFormat
 	// from http://doc.sccode.org/Classes/SoundFile.html#-headerFormat
-*/
-/*
-   "AIFF"	Apple/SGI AIFF format
-   "WAV","WAVE", "RIFF"	Microsoft WAV format
-   "Sun", "NeXT"	Sun/NeXT AU format
-   "SD2"	Sound Designer 2
-   "IRCAM"	Berkeley/IRCAM/CARL
-   "raw"	no header = raw data
-   "MAT4"	Matlab (tm) V4.2 / GNU Octave 2.0
-   "MAT5"	Matlab (tm) V5.0 / GNU Octave 2.1
-   "PAF"	Ensoniq PARIS file format
-   "SVX"	Amiga IFF / SVX8 / SV16 format
-   "NIST"	Sphere NIST format
-   "VOC"	VOC files
-   "W64"	Sonic Foundry's 64 bit RIFF/WAV
-   "PVF"	Portable Voice Format
-   "XI"	Fasttracker 2 Extended Instrument
-   "HTK"	HMM Tool Kit format
-   "SDS"	Midi Sample Dump Standard
-   "AVR"	Audio Visual Research
-   "FLAC"	FLAC lossless file format
-   "CAF"	Core Audio File format
-*/
-/*
+	/*
+	   "AIFF"	Apple/SGI AIFF format
+	   "WAV","WAVE", "RIFF"	Microsoft WAV format
+	   "Sun", "NeXT"	Sun/NeXT AU format
+	   "SD2"	Sound Designer 2
+	   "IRCAM"	Berkeley/IRCAM/CARL
+	   "raw"	no header = raw data
+	   "MAT4"	Matlab (tm) V4.2 / GNU Octave 2.0
+	   "MAT5"	Matlab (tm) V5.0 / GNU Octave 2.1
+	   "PAF"	Ensoniq PARIS file format
+	   "SVX"	Amiga IFF / SVX8 / SV16 format
+	   "NIST"	Sphere NIST format
+	   "VOC"	VOC files
+	   "W64"	Sonic Foundry's 64 bit RIFF/WAV
+	   "PVF"	Portable Voice Format
+	   "XI"	Fasttracker 2 Extended Instrument
+	   "HTK"	HMM Tool Kit format
+	   "SDS"	Midi Sample Dump Standard
+	   "AVR"	Audio Visual Research
+	   "FLAC"	FLAC lossless file format
+	   "CAF"	Core Audio File format
+	*/
 	//cmd = exec.Command("scsynth", "-N", oscCodeFile, "_", audioFile, "48000", "AIFF", "int16", "-o", "2")
 	//cmd = exec.Command("scsynth", "-N", oscCodeFile, "_", audioFile, "48000", "AIFF", "float", "-o", "2")
 
@@ -726,4 +900,3 @@ func playFile(audioFile string, skipSecs float32) (ok bool) {
 	}
 	return true
 }
-*/

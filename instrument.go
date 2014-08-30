@@ -1,5 +1,7 @@
 package music
 
+import "io/ioutil"
+
 type Generator interface {
 	NewNodeId() int
 	NewBusId() int
@@ -39,15 +41,13 @@ func (i *SCInstrument) Use() {
 	i.used = true
 }
 
-/*
 func (i *SCInstrument) LoadCode() []byte {
-	data, err := ioutil.ReadFile(metapath)
+	data, err := ioutil.ReadFile(i.Path)
 	if err != nil {
 		panic("can't read instrument " + i.Path)
 	}
 	return data
 }
-*/
 
 func Voices(num int, g Generator, instr Instrument, groupid int) []*Voice {
 	voices := make([]*Voice, num)

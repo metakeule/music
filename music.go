@@ -22,15 +22,17 @@ type Scale interface {
 	Degree(degree int) Parameter
 }
 
+/*
 type Tracker interface {
 	EachBar() []Pattern
 	TempoAt(abspos Measure) Tempo
 	CurrentBar() Measure
 	BarNum() int
-	SetEachBar(eachBar ...Pattern)
+	SetEachBar(eachBar ...Pattern) Tracker
 	SetTempo(position Measure, tempo Tempo)
 	At(position Measure, events ...*Event)
 }
+*/
 
 /*
 //func New(bar string, tr ...Patterner) *Track {
@@ -42,25 +44,12 @@ func New(bar string, tempo Tempo, tr ...Patterner) *Track {
 }
 */
 
-type eachBar struct {
-	trafos []Pattern
-}
+type params []Parameter
 
-func (e *eachBar) Pattern(t Tracker) {
-	for _, tr := range e.trafos {
-		tr.Pattern(t)
-	}
-	t.SetEachBar(e.trafos...)
-}
-
-func EachBar(tr ...Pattern) *eachBar {
-	return &eachBar{tr}
-}
-
-func Params(parameter ...Parameter) Parameter {
+func (ps params) Params() map[string]float64 {
 	params := map[string]float64{}
 
-	for _, p := range parameter {
+	for _, p := range ps {
 		if p == nil {
 			continue
 		}
@@ -68,7 +57,11 @@ func Params(parameter ...Parameter) Parameter {
 			params[k] = v
 		}
 	}
-	return ParamsMap(params)
+	return params
+}
+
+func Params(parameter ...Parameter) Parameter {
+	return params(parameter)
 }
 
 func Metronome(voice *Voice, unit Measure, parameter ...Parameter) *metronome {
@@ -86,7 +79,7 @@ type metronome struct {
 	eventProps Parameter
 }
 
-func (m *metronome) Pattern(t Tracker) {
+func (m *metronome) Pattern(t *Track) {
 	n := int(t.CurrentBar() / m.unit)
 	half := m.unit / 2
 	for i := 0; i < n; i++ {
@@ -101,7 +94,7 @@ type bar struct {
 	eventProps Parameter
 }
 
-func (m *bar) Pattern(t Tracker) {
+func (m *bar) Pattern(t *Track) {
 	t.At(M("0"), On(m.voice, m.eventProps))
 	t.At(M("1/8"), Off(m.voice))
 	m.counter++

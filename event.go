@@ -14,7 +14,7 @@ func (p ParamsMap) Params() map[string]float64 {
 
 type Event struct {
 	Voice       *Voice
-	Params      map[string]float64 // a special parameter offset may be used to set a per event offset
+	Params      Parameter // a special parameter offset may be used to set a per event offset
 	Runner      func(*Event)
 	Type        string
 	Tick        uint
@@ -43,8 +43,9 @@ var start = &Event{Runner: func(*Event) {}, Type: "start"}
 
 func newEvent(v *Voice, type_ string) *Event {
 	return &Event{
-		Voice:  v,
-		Params: map[string]float64{},
+		Voice: v,
+		//Params: map[string]float64{},
+		Params: ParamsMap(map[string]float64{}),
 		// ParamModifiers: map[string]func(float64) float64{},
 		Type: type_,
 	}
@@ -57,13 +58,9 @@ func newEvent(v *Voice, type_ string) *Event {
 //func (ev *Event) OnMerged(voice Voice, m map[string]float64) *Event {
 func (ev *Event) OnMerged(voice *Voice, ps ...Parameter) *Event {
 	n := ev.Clone()
-
-	for _, p := range ps {
-		for k, v := range p.Params() {
-			n.Params[k] = v
-		}
-	}
-
+	p := []Parameter{ev.Params}
+	p = append(p, ps...)
+	n.Params = Params(p...)
 	n.Voice = voice
 	n.Runner = voice.On
 	n.Type = "ON"
@@ -77,35 +74,13 @@ func (ev *Event) OnMerged(voice *Voice, ps ...Parameter) *Event {
 //func (ev *Event) ChangeMerged(voice Voice, m map[string]float64) *Event {
 func (ev *Event) ChangeMerged(voice *Voice, ps ...Parameter) *Event {
 	n := ev.Clone()
-
-	for _, p := range ps {
-		for k, v := range p.Params() {
-			n.Params[k] = v
-		}
-	}
-
+	p := []Parameter{ev.Params}
+	p = append(p, ps...)
+	n.Params = Params(p...)
 	n.Voice = voice
 	n.Runner = voice.Change
 	n.Type = "CHANGE"
 	return n
-}
-
-func (ev *Event) FinalParams() map[string]float64 {
-	/*
-		res := map[string]float64{}
-		for k, v := range ev.Params {
-			modifier, exists := ev.ParamModifiers[k]
-			if exists {
-				v = modifier(v)
-			}
-			res[k] = v
-		}
-		return res
-	*/
-	if ev.Params == nil {
-		return map[string]float64{}
-	}
-	return ev.Params
 }
 
 func (ev *Event) Clone() *Event {
@@ -113,30 +88,15 @@ func (ev *Event) Clone() *Event {
 	n := &Event{Voice: ev.Voice, Runner: ev.Runner}
 	n.Type = ev.Type
 	n.AbsPosition = ev.AbsPosition
-	//n.Duration = ev.Duration
-	if len(ev.Params) > 0 {
-		n.Params = map[string]float64{}
-		for k, v := range ev.Params {
-			n.Params[k] = v
-		}
-	}
+	n.Params = ev.Params
 	return n
 }
 
 //func On(v Voice, params ...map[string]float64) *Event {
 func On(v *Voice, params ...Parameter) *Event {
-	p := map[string]float64{}
-
-	for _, ps := range params {
-
-		for k, v := range ps.Params() {
-			p[k] = v
-		}
-
-	}
 	return &Event{
 		Voice:  v,
-		Params: p,
+		Params: Params(params...),
 		// ParamModifiers: map[string]func(float64) float64{},
 		Runner: v.On,
 		Type:   "ON",
@@ -169,18 +129,9 @@ func UnMute(v *Voice) *Event {
 
 //func Change(v Voice, params ...map[string]float64) *Event {
 func Change(v *Voice, params ...Parameter) *Event {
-	p := map[string]float64{}
-
-	for _, ps := range params {
-
-		for k, v := range ps.Params() {
-			p[k] = v
-		}
-
-	}
 	return &Event{
 		Voice:  v,
-		Params: p,
+		Params: Params(params...),
 		// ParamModifiers: map[string]func(float64) float64{},
 		Runner: v.Change,
 		Type:   "CHANGE",

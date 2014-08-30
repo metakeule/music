@@ -14,32 +14,46 @@ type Track struct {
 	Events   []*Event
 	eachBar  []Pattern
 	compiled bool
+	started  bool
 }
 
-func newTrack(tempo Tempo, m Measure, eachBar ...Pattern) *Track {
+func newTrack(tempo Tempo, m Measure) *Track {
 	return &Track{
-		AbsPos:  Measure(0),
-		Bars:    []Measure{m},
-		Tempi:   []tempoAt{tempoAt{AbsPos: Measure(0), Tempo: tempo}},
-		eachBar: eachBar,
+		AbsPos: Measure(0),
+		Bars:   []Measure{m},
+		Tempi:  []tempoAt{tempoAt{AbsPos: Measure(0), Tempo: tempo}},
 	}
 }
 
-func (t *Track) SetEachBar(eachBar ...Pattern) {
+func (t *Track) SetEachBar(eachBar ...Pattern) *Track {
 	t.eachBar = eachBar
+	return t
 }
 
 func (t *Track) EachBar() []Pattern {
 	return t.eachBar
 }
 
+func (t *Track) Start(patterns ...Pattern) *Track {
+	t.Patterns(t.eachBar...)
+	t.Patterns(patterns...)
+	t.started = true
+	return t
+}
+
 func (t *Track) nextBar() {
+	if !t.started {
+		panic("call Start() before Next()/Fill()")
+	}
 	t.Bars = append(t.Bars, t.Bars[len(t.Bars)-1])
 	t.AbsPos = t.AbsPos + t.Bars[len(t.Bars)-1]
 	t.Patterns(t.eachBar...)
 }
 
 func (t *Track) changeBar(newBar Measure) {
+	if !t.started {
+		panic("call Start() before Change()")
+	}
 	t.Bars = append(t.Bars, newBar)
 	t.AbsPos = t.AbsPos + t.Bars[len(t.Bars)-1]
 	t.Patterns(t.eachBar...)
@@ -111,7 +125,7 @@ func (t *Track) Print(tempo Tempo, unit string, wr io.Writer) {
 			switch ev.Type {
 			case "ON":
 				//fmt.Print("<")
-				fmt.Fprintf(wr, "%v-", ev.FinalParams()["note"])
+				fmt.Fprintf(wr, "%v-", ev.Params.Params()["note"])
 				// fmt.Print(ev.FinalParams()["note"])
 				placeholder = "-"
 			case "OFF":

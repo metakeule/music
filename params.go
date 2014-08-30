@@ -5,6 +5,26 @@ import (
 	"math/rand"
 )
 
+type params []Parameter
+
+func (ps params) Params() map[string]float64 {
+	params := map[string]float64{}
+
+	for _, p := range ps {
+		if p == nil {
+			continue
+		}
+		for k, v := range p.Params() {
+			params[k] = v
+		}
+	}
+	return params
+}
+
+func Params(parameter ...Parameter) Parameter {
+	return params(parameter)
+}
+
 type Parameter interface {
 	Params() map[string]float64
 }
@@ -14,27 +34,6 @@ type ParamsMap map[string]float64
 func (p ParamsMap) Params() map[string]float64 {
 	return map[string]float64(p)
 }
-
-/*
-func Random1(pos string, v *Voice, key string, add float64, m ...Parameter) *randomized {
-	return &randomized{
-		Voice:     v,
-		vals:      Params(m...).Params(),
-		randomKey: key,
-		randomAdd: add,
-		pos:       pos,
-	}
-}
-
-type randomized struct {
-	*Voice
-	vals      map[string]float64
-	randomKey string
-	randomAdd float64
-	pos       string
-	//randFunc     func(add float64) float64
-}
-*/
 
 type Valuer interface {
 	Value(current float64) float64
@@ -134,11 +133,6 @@ func MultiSet(valuerParamsPair ...interface{}) Parameter {
 		s.valuer[i/2] = val
 		s.params[i/2] = param
 		i += 2
-		/*
-			if i < len(valuerParamsPair) {
-				break
-			}
-		*/
 	}
 
 	return s
@@ -151,21 +145,6 @@ type Random float64
 func (r Random) Value(current float64) float64 {
 	return current + (rand.Float64() * float64(r))
 }
-
-/*
-func (r *randomized) Transform(tr Tracker) {
-	val := rand.Float64() + r.randomAdd
-	if val > 1 {
-		val = 1
-	}
-
-	if val < 0 {
-		val = 0
-	}
-	r.vals[r.randomKey] = val
-	tr.At(M(r.pos), On(r.Voice, ParamsMap(r.vals)))
-}
-*/
 
 type param struct {
 	name  string

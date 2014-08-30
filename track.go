@@ -67,7 +67,7 @@ func (t *Track) Print(tempo Tempo, unit string, wr io.Writer) {
 		panic("track is not compiled")
 	}
 	// events must be sorted by tick
-	// Voice => Tick => Even
+	// Voice => Tick => Event
 	voiceLines := map[*Voice]map[int]*Event{}
 	for _, ev := range t.Events {
 		// ev.Runner(ev)

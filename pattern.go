@@ -15,15 +15,6 @@ func (tf PatternFunc) Pattern(tr *Track) {
 	tf(tr)
 }
 
-/*
-// func Modify(pos string, v Voice, params ...map[string]float64) *mod {
-type seqMod struct {
-	v   Voice
-	seq []map[string]float64
-	Pos int
-}
-*/
-
 type seqModTrafo struct {
 	*seqPlay
 	pos            Measure
@@ -38,21 +29,6 @@ func (sm *seqModTrafo) Pattern(tr *Track) {
 		sm.seqPlay.Pos = 0
 	}
 }
-
-/*
-func SeqeuenceModify(v Voice, paramSeq ...Parameter) *seqMod {
-	seq := []map[string]float64{}
-
-	for _, p := range paramSeq {
-		seq = append(seq, p.Params())
-	}
-
-	return &seqMod{
-		seq: seq,
-		v:   v,
-	}
-}
-*/
 
 type seqPlay struct {
 	seq        []Parameter
@@ -265,16 +241,6 @@ type tempoSpanTrafo struct {
 	pos string
 }
 
-/*
-func Add(current, step float64) float64 {
-	return current + step
-}
-
-func Multiply(current, step float64) float64 {
-	return current * step
-}
-*/
-
 func (ts *tempoSpan) SetTempo(pos string) Pattern {
 	return &tempoSpanTrafo{ts, pos}
 }
@@ -420,4 +386,40 @@ func (ld *expDistributeTrafo) Pattern(tr *Track) {
 		pos += width
 		//val += diff
 	}
+}
+
+func Metronome(voice *Voice, unit Measure, parameter ...Parameter) *metronome {
+	return &metronome{voice: voice, unit: unit, eventProps: Params(parameter...)}
+}
+
+func Bar(voice *Voice, parameter ...Parameter) *bar {
+	return &bar{voice: voice, eventProps: Params(parameter...)}
+}
+
+type metronome struct {
+	last       Measure
+	voice      *Voice
+	unit       Measure
+	eventProps Parameter
+}
+
+func (m *metronome) Pattern(t *Track) {
+	n := int(t.CurrentBar() / m.unit)
+	half := m.unit / 2
+	for i := 0; i < n; i++ {
+		t.At(m.unit*Measure(i), OnEvent(m.voice, m.eventProps))
+		t.At(m.unit*Measure(i)+half, OffEvent(m.voice))
+	}
+}
+
+type bar struct {
+	voice      *Voice
+	counter    float64
+	eventProps Parameter
+}
+
+func (m *bar) Pattern(t *Track) {
+	t.At(M("0"), OnEvent(m.voice, m.eventProps))
+	t.At(M("1/8"), OffEvent(m.voice))
+	m.counter++
 }

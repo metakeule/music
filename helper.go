@@ -24,3 +24,11 @@ func (t EventsSorted) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
 func (t EventsSorted) Less(i, j int) bool {
 	return t[i].AbsPosition < t[j].AbsPosition
 }
+
+func MillisecsToTick(ms float64) int {
+	return int(RoundFloat(ms*1000000.0, 0))
+}
+
+func TickToSeconds(tick int) float32 {
+	return float32(tick) / float32(1000000000)
+}

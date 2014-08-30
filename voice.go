@@ -11,10 +11,11 @@ import (
 type Voice struct {
 	Generator
 	Instrument
-	SCNode  int // the node id of the voice
-	SCGroup int
-	mute    bool
-	Bus     int
+	SCNode               int // the node id of the voice
+	SCGroup              int
+	mute                 bool
+	Bus                  int
+	lastInstrumentSample *Sample // the last sample played by a sample instrument
 }
 
 func (v *Voice) PlayDur(pos, dur string, params ...Parameter) Pattern {
@@ -106,33 +107,19 @@ func (v *Voice) On(ev *Event) {
 	v.SCNode = v.NewNodeId()
 
 	if oldNode != 0 && oldNode > 2000 {
-		// if oldNode != 0 {
 		// fmt.Fprintf(&ev.SCCode, `, [\n_set, %d, \gate, -1]`, oldNode)
 		fmt.Fprintf(&ev.SCCode, `, [\n_free, %d]`, oldNode)
 	}
 
 	switch i := v.Instrument.(type) {
 	case *SCInstrument:
-		/*
-			if oldNode != 0 && oldNode > 2000 {
-				// fmt.Fprintf(&ev.SCCode, `, [\n_set, %d, \gate, -1]`, oldNode)
-				fmt.Fprintf(&ev.SCCode, `, [\n_free, %d]`, oldNode)
-			}
-		*/
 		ev.Offset = i.Offset + offsetParam
 	case *SCSample:
-		if i.Freq != 0 && params["freq"] != 0 && i.Freq != params["freq"] {
+		if i.Sample.Frequency != 0 && params["freq"] != 0 && i.Sample.Frequency != params["freq"] {
 			if _, isSet := params["rate"]; !isSet {
-				params["rate"] = params["freq"] / i.Freq
+				params["rate"] = params["freq"] / i.Sample.Frequency
 			}
 		}
-
-		/*
-			if oldNode != 0 && oldNode > 2000 {
-				// fmt.Fprintf(&ev.SCCode, `, [\n_set, %d, \gate, -1]`, oldNode)
-				fmt.Fprintf(&ev.SCCode, `, [\n_free, %d]`, oldNode)
-			}
-		*/
 		bufnum := i.Sample.SCBuffer
 		fmt.Fprintf(
 			&ev.SCCode,
@@ -147,7 +134,13 @@ func (v *Voice) On(ev *Event) {
 
 	case *SCSampleInstrument:
 		sample := i.Sample(params)
+		if sampleFreq, hasSampleFreq := params["samplefreq"]; hasSampleFreq {
+			sample.Frequency = sampleFreq
+			delete(params, "samplefreq")
+		}
+
 		bufnum := sample.SCBuffer
+		v.lastInstrumentSample = sample
 		fmt.Fprintf(
 			&ev.SCCode,
 			`, [\s_new, \%s, %d, 0, 0, \bufnum, %d%s]`,
@@ -167,7 +160,6 @@ func (v *Voice) On(ev *Event) {
 
 func (v *Voice) Change(ev *Event) {
 	if v.SCNode == 0 {
-		// fmt.Println("can't change not existing node for instrument " + v.Instrument.Name())
 		return
 	}
 
@@ -206,13 +198,6 @@ func (v *Voice) Change(ev *Event) {
 		return
 	}
 
-	// give it a chance to modify the params, e.g. rate
-	/*
-		if si, ok := v.Instrument.(*SCSampleInstrument); ok {
-			si.SamplePath(si.instrument, ev.Params)
-		}
-	*/
-
 	for k, val := range params {
 		if k[0] == '_' {
 			idx := strings.Index(k, "-")
@@ -237,9 +222,17 @@ func (v *Voice) Change(ev *Event) {
 	}
 
 	if i, ok := v.Instrument.(*SCSample); ok {
-		if i.Freq != 0 && params["freq"] != 0 && i.Freq != params["freq"] {
+		if i.Sample.Frequency != 0 && params["freq"] != 0 && i.Sample.Frequency != params["freq"] {
 			if _, isSet := params["rate"]; !isSet {
-				params["rate"] = params["freq"] / i.Freq
+				params["rate"] = params["freq"] / i.Sample.Frequency
+			}
+		}
+	}
+
+	if _, ok := v.Instrument.(*SCSampleInstrument); ok {
+		if v.lastInstrumentSample != nil && v.lastInstrumentSample.Frequency != 0 && params["freq"] != 0 && v.lastInstrumentSample.Frequency != params["freq"] {
+			if _, isSet := params["rate"]; !isSet {
+				params["rate"] = params["freq"] / v.lastInstrumentSample.Frequency
 			}
 		}
 	}
@@ -260,6 +253,7 @@ func (v *Voice) Off(ev *Event) {
 		return
 	}
 
+	v.lastInstrumentSample = nil
 	fmt.Fprintf(&ev.SCCode, `, [\n_set, %d, \gate, -1]`, v.SCNode)
 }
 

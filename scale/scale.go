@@ -9,6 +9,10 @@ import (
 	TODO: make cord scales
 */
 
+type Scale interface {
+	Degree(degree int) music.Parameter
+}
+
 type Chromatic struct {
 	BaseNote note.Note
 }

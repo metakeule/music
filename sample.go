@@ -1,124 +1,107 @@
 package music
 
-/*
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 )
 
-type sample struct {
-	// func (in *instrument) New(num int) []Voice {
-	num int
-	*instrument
-	name string
-	// offset int
+type SCSample struct {
+	*SCInstrument
+	*Sample
 }
 
-// TODO: fix the issue: each sample needs to start with an upper voice, otherwise
-// all samples using sample1 get on the first voice the same
-func (s *sample) Voices(num int) []*sampleVoice {
-	offset := s.instrument.sc.GetSampleOffset(s.name)
-	// fmt.Printf("offset for %s is %v\n", s.name, offset)
-	v := make([]*sampleVoice, num)
-	for i := 0; i < num; i++ {
-		//s.instrument.sc.instrNumber++
-		//s.instrument.sc.sampleNumber++
-		samplenum := s.instrument.sc.IncrSampleNumber()
-		name := fmt.Sprintf("%s-%d", s.instrument.name, i)
-		vc := &voice{
-			name:       name,
-			instrument: s.instrument,
-			num:        i,
-			// instrNum:   s.instrument.sc.instrNumber,
-			// instrNum: s.instrument.sc.sampleNumber,
-			instrNum: samplenum,
-		}
-		v[i] = &sampleVoice{vc, s, s.offset + offset}
-		//s.instrument.sc.voicesToNum[name] = s.instrument.sc.instrNumber
-		// s.instrument.sc.voicesToNum[name] = s.instrument.sc.sampleNumber
-		s.instrument.sc.SetVoiceToNum(name, samplenum)
-		// s.instrument.sc.numToVoices[s.instrument.sc.instrNumber] = vc
-		// s.instrument.sc.numToVoices[s.instrument.sc.sampleNumber] = vc
-		s.instrument.sc.SetNumToVoices(samplenum, vc)
+func NewSCSampleFreq(g Generator, path string, freq float64, numVoices int) []*Voice {
+	vs := NewSCSample(g, path, numVoices)
+	vs[0].Instrument.(*SCSample).Sample.Frequency = freq
+	return vs
+}
+
+func NewSCSample(g Generator, path string, numVoices int) []*Voice {
+	sample := NewSample(path)
+	sample.SCBuffer = g.NewSampleBuffer()
+	instr := &SCInstrument{
+		name: fmt.Sprintf("sample%d", sample.Channels),
+		Path: "",
 	}
-	return v
+	i := &SCSample{SCInstrument: instr, Sample: sample}
+	return Voices(numVoices, g, i, -1)
 }
 
-type sampleVoice struct {
-	*voice
-	*sample
-	offset int
+type SampleLibrary interface {
+	SamplePath(instrument string, params map[string]float64) string
+	Channels() []int // channel variants
 }
 
-func (v *sampleVoice) PlayDur(pos, dur string, params ...Parameter) Pattern {
-	return PlayDur(pos, dur, v, params...)
+type SCSampleInstrument struct {
+	SampleLibrary
+	// path => *Sample
+	Samples    map[string]*Sample
+	instrument string
+	g          Generator
 }
 
-func (v *sampleVoice) Play(pos string, params ...Parameter) Pattern {
-	return Play(pos, v, params...)
+func (s *SCSampleInstrument) Name() string {
+	return "samplelibrary"
 }
 
-func (v *sampleVoice) Stop(pos string) Pattern {
-	return Stop(pos, v)
+func NewSCSampleInstrument(g Generator, instrument string, sampleLib SampleLibrary, numVoices int) []*Voice {
+	i := &SCSampleInstrument{sampleLib, map[string]*Sample{}, instrument, g}
+	return Voices(numVoices, g, i, -1)
 }
 
-func (v *sampleVoice) Modify(pos string, params ...Parameter) Pattern {
-	return Modify(pos, v, params...)
-}
-
-// TODO it would be nice to be able to load the sample (track that its loaded, so it does not have to be loaded again)
-// and then immediatly use it. the question is, if that works out in NRT and if it works when its loaded and used in the
-// same command - trial and error
-func (sv *sampleVoice) On(ev *Event) {
-	sv.voice.instrument.sc.UseSample(sv.sample.name)
-
-	//sv.voice.instrument.sc.instrNumber++
-	instrnum := sv.voice.instrument.sc.IncrInstrNumber()
-	if sv.voice.instrNum > 2000 {
-		//fmt.Fprintf(sv.voice.instrument.sc.buffer, `, [\n_free, %d]`, sv.voice.instrNum)
-		fmt.Fprintf(sv.voice.instrument.sc, `, [\n_free, %d]`, sv.voice.instrNum)
+func (s *SCSampleInstrument) Sample(params map[string]float64) *Sample {
+	samplePath := s.SampleLibrary.SamplePath(s.instrument, params)
+	sample, has := s.Samples[samplePath]
+	if !has {
+		sample = NewSample(samplePath)
+		s.Samples[samplePath] = sample
+		sample.SCBuffer = s.g.NewSampleBuffer()
 	}
+	return sample
+}
 
-	//sv.voice.instrNum = sv.voice.instrument.sc.instrNumber
-	sv.voice.instrNum = instrnum
-	if sv.voice.mute {
+type Sample struct {
+	Path         string  // the path of the sample
+	Offset       float64 // offset in milliseconds until max amplitude must be positiv
+	MaxAmp       float64 // max amplitude value, must be between 0 and 1
+	SCBuffer     int     // the sc buffer number
+	Channels     uint    // number of channels
+	NumFrames    int     // number of frames
+	SampleRate   int     // e.g. 44100
+	SampleFormat string  // e.g. int16
+	Duration     float64 // duration in seconds
+	HeaderFormat string  // e.g. WAV
+	Frequency    float64
+}
+
+/*
+	{
+		"offset": 0.01124716553288,
+		"maxAmp": 0.8631591796875,
+		"numFrames": 64637,"sampleRate": 44100,"channels": 2,"sampleFormat": "int16","duration": 1.4656916099773,"headerFormat": "WAV"}
+*/
+
+func NewSample(path string) *Sample {
+	s := &Sample{Path: path}
+	s.loadMeta()
+	return s
+}
+
+func (s *Sample) loadMeta() {
+	s.MaxAmp = 1
+	s.Offset = 0
+	s.Channels = 1
+	metapath := s.Path + ".meta"
+	data, err := ioutil.ReadFile(metapath)
+	if err != nil {
+		fmt.Printf("file not found: " + metapath + ", using defaults")
 		return
 	}
-	fmt.Fprintf(
-		//sv.voice.instrument.sc.buffer,
-		sv.voice.instrument.sc,
-		//`, [\s_new, \%s, %d, 0, 0, \bufnum, b.sample%d%s]`,
-		`, [\s_new, \%s, %d, 0, 0, \bufnum, %d%s]`,
-		//`, [\s_new, \%s, -1, 0, 0, \bufnum, %d%s]`,
-		sv.voice.instrument.name,
-		sv.voice.instrNum,
-		sv.sample.num,
-		sv.voice.paramsStr(ev),
-	)
-}
 
-func (sv *sampleVoice) Offset() int {
-	return sv.offset
+	err = json.Unmarshal(data, &s)
+	if err != nil {
+		panic("invalid json format for " + metapath)
+	}
+	s.Offset = s.Offset * 1000.0
 }
-
-func (sv *sampleVoice) SetOffset(offset int) {
-	sv.offset = offset
-}
-
-var sampleLoader = `SynthDef("sample%d", { |gate=1,bufnum = 0,amp=1, out=0, pan=0, rate=1| var z;
-	z =  EnvGen.kr(Env.perc,gate) * PlayBuf.ar(%d, bufnum, BufRateScale.kr(bufnum) * rate);
-	FreeSelfWhenDone.kr(z);
-	Out.ar(out, Pan2.ar(z, pos: pan, level: amp));
-} )`
-*/
-
-/*
-func (sv *sampleVoice) Off(ev *Event) {
-}
-*/
-
-/*
-func (sv *sampleVoice) Off(ev *Event) {
-	//fmt.Fprintf(v.instrument.sc.buffer, `, [\n_set, %d, \gate, 0]`, v.instrNum)
-	fmt.Fprintf(sv.voice.instrument.sc.buffer, `, [\n_set, %d, \gate, -1]`, sv.voice.instrNum)
-}
-*/

@@ -2,16 +2,6 @@ package music
 
 import "bytes"
 
-type Parameter interface {
-	Params() map[string]float64
-}
-
-type ParamsMap map[string]float64
-
-func (p ParamsMap) Params() map[string]float64 {
-	return map[string]float64(p)
-}
-
 type Event struct {
 	Voice       *Voice
 	Params      Parameter // a special parameter offset may be used to set a per event offset
@@ -23,31 +13,14 @@ type Event struct {
 	SCCode      bytes.Buffer
 }
 
-/*
-type Event struct {
-	Voice Voice
-	// parameters that might be modified by ParamModifiers
-	Params map[string]float64
-	// modifiers, such as returning a frequency for a position in a scale
-	// ParamModifiers map[string]func(float64) float64
-	Runner      func(*Event)
-	Type        string
-	Tick        uint
-	AbsPosition Measure
-	//Duration       Measure
-}
-*/
-
 var fin = &Event{Runner: func(*Event) {}, Type: "fin"}
 var start = &Event{Runner: func(*Event) {}, Type: "start"}
 
 func newEvent(v *Voice, type_ string) *Event {
 	return &Event{
-		Voice: v,
-		//Params: map[string]float64{},
+		Voice:  v,
 		Params: ParamsMap(map[string]float64{}),
-		// ParamModifiers: map[string]func(float64) float64{},
-		Type: type_,
+		Type:   type_,
 	}
 }
 
@@ -84,7 +57,6 @@ func (ev *Event) ChangeMerged(voice *Voice, ps ...Parameter) *Event {
 }
 
 func (ev *Event) Clone() *Event {
-	//n := &Event{Voice: ev.Voice, Runner: ev.Runner, ParamModifiers: ev.ParamModifiers}
 	n := &Event{Voice: ev.Voice, Runner: ev.Runner}
 	n.Type = ev.Type
 	n.AbsPosition = ev.AbsPosition
@@ -92,18 +64,16 @@ func (ev *Event) Clone() *Event {
 	return n
 }
 
-//func On(v Voice, params ...map[string]float64) *Event {
-func On(v *Voice, params ...Parameter) *Event {
+func OnEvent(v *Voice, params ...Parameter) *Event {
 	return &Event{
 		Voice:  v,
 		Params: Params(params...),
-		// ParamModifiers: map[string]func(float64) float64{},
 		Runner: v.On,
 		Type:   "ON",
 	}
 }
 
-func Off(v *Voice) *Event {
+func OffEvent(v *Voice) *Event {
 	return &Event{
 		Voice:  v,
 		Runner: v.Off,
@@ -111,7 +81,7 @@ func Off(v *Voice) *Event {
 	}
 }
 
-func Mute(v *Voice) *Event {
+func MuteEvent(v *Voice) *Event {
 	return &Event{
 		Voice:  v,
 		Runner: v.Mute,
@@ -119,7 +89,7 @@ func Mute(v *Voice) *Event {
 	}
 }
 
-func UnMute(v *Voice) *Event {
+func UnMuteEvent(v *Voice) *Event {
 	return &Event{
 		Voice:  v,
 		Runner: v.UnMute,
@@ -127,12 +97,10 @@ func UnMute(v *Voice) *Event {
 	}
 }
 
-//func Change(v Voice, params ...map[string]float64) *Event {
-func Change(v *Voice, params ...Parameter) *Event {
+func ChangeEvent(v *Voice, params ...Parameter) *Event {
 	return &Event{
 		Voice:  v,
 		Params: Params(params...),
-		// ParamModifiers: map[string]func(float64) float64{},
 		Runner: v.Change,
 		Type:   "CHANGE",
 	}

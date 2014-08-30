@@ -5,6 +5,16 @@ import (
 	"math/rand"
 )
 
+type Parameter interface {
+	Params() map[string]float64
+}
+
+type ParamsMap map[string]float64
+
+func (p ParamsMap) Params() map[string]float64 {
+	return map[string]float64(p)
+}
+
 /*
 func Random1(pos string, v *Voice, key string, add float64, m ...Parameter) *randomized {
 	return &randomized{

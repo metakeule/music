@@ -262,3 +262,8 @@ func (v *Voice) Off(ev *Event) {
 
 	fmt.Fprintf(&ev.SCCode, `, [\n_set, %d, \gate, -1]`, v.SCNode)
 }
+
+type CodeLoader interface {
+	IsUsed() bool
+	Use()
+}

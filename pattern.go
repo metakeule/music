@@ -1,5 +1,10 @@
 package music
 
+import (
+	"math/rand"
+	"time"
+)
+
 type Pattern interface {
 	Pattern(*Track)
 }
@@ -26,7 +31,7 @@ type seqModTrafo struct {
 }
 
 func (sm *seqModTrafo) Pattern(tr *Track) {
-	tr.At(sm.pos, Change(sm.seqPlay.v, Params(sm.seqPlay.seq[sm.seqPlay.Pos], sm.overrideParams)))
+	tr.At(sm.pos, ChangeEvent(sm.seqPlay.v, Params(sm.seqPlay.seq[sm.seqPlay.Pos], sm.overrideParams)))
 	if sm.seqPlay.Pos < len(sm.seqPlay.seq)-1 {
 		sm.seqPlay.Pos++
 	} else {
@@ -84,8 +89,8 @@ func (spt *seqPlayTrafo) Params() (p map[string]float64) {
 }
 
 func (spt *seqPlayTrafo) Pattern(tr *Track) {
-	tr.At(spt.pos, On(spt.seqPlay.v, spt))
-	tr.At(spt.pos+spt.dur, Off(spt.seqPlay.v))
+	tr.At(spt.pos, OnEvent(spt.seqPlay.v, spt))
+	tr.At(spt.pos+spt.dur, OffEvent(spt.seqPlay.v))
 	if spt.seqPlay.Pos < len(spt.seqPlay.seq)-1 {
 		spt.seqPlay.Pos++
 	} else {
@@ -105,7 +110,7 @@ func Play(pos string, v *Voice, params ...Parameter) *play {
 
 func (p *play) Pattern(t *Track) {
 	// fmt.Printf("tempo at %s: %v BPM\n", p.pos, t.TempoAt(p.pos))
-	t.At(p.pos, On(p.Voice, p.Params))
+	t.At(p.pos, OnEvent(p.Voice, p.Params))
 }
 
 type playDur struct {
@@ -121,8 +126,8 @@ func PlayDur(pos, dur string, v *Voice, params ...Parameter) *playDur {
 
 func (p *playDur) Pattern(t *Track) {
 	// fmt.Printf("tempo at %s: %v BPM\n", p.pos, t.TempoAt(p.pos))
-	t.At(p.pos, On(p.Voice, p.Params))
-	t.At(p.pos+p.dur, Off(p.Voice))
+	t.At(p.pos, OnEvent(p.Voice, p.Params))
+	t.At(p.pos+p.dur, OffEvent(p.Voice))
 }
 
 type exec_ struct {
@@ -152,7 +157,7 @@ func Stop(pos string, v *Voice) *stop {
 }
 
 func (p *stop) Pattern(t *Track) {
-	t.At(p.pos, Off(p.Voice))
+	t.At(p.pos, OffEvent(p.Voice))
 }
 
 // type end struct{}
@@ -189,7 +194,7 @@ func StopAll(pos string, vs ...[]*Voice) *stopAll {
 
 func (p *stopAll) Pattern(t *Track) {
 	for i := 0; i < len(p.Voices); i++ {
-		t.At(p.pos, Off(p.Voices[i]))
+		t.At(p.pos, OffEvent(p.Voices[i]))
 	}
 }
 
@@ -217,7 +222,7 @@ func Modify(pos string, v *Voice, params ...Parameter) *mod {
 }
 
 func (p *mod) Pattern(t *Track) {
-	t.At(p.pos, Change(p.Voice, p.Params))
+	t.At(p.pos, ChangeEvent(p.Voice, p.Params))
 }
 
 type times struct {
@@ -233,6 +238,20 @@ func (n *times) Pattern(t *Track) {
 
 func Times(num int, trafo Pattern) Pattern {
 	return &times{times: num, trafo: trafo}
+}
+
+func init() {
+	rand.Seed(time.Now().UTC().UnixNano())
+}
+
+type randomPattern []Pattern
+
+func (r randomPattern) Pattern(t *Track) {
+	r[rand.Intn(len(r))].Pattern(t)
+}
+
+func RandomPattern(patterns ...Pattern) Pattern {
+	return randomPattern(patterns)
 }
 
 type tempoSpan struct {
@@ -358,7 +377,7 @@ func (ld *linearDistributeTrafo) Pattern(tr *Track) {
 	pos := ld.pos
 	val := ld.linearDistribute.from
 	for i := 0; i < ld.linearDistribute.steps; i++ {
-		tr.At(pos, Change(ld.v, ParamsMap(map[string]float64{ld.linearDistribute.key: val})))
+		tr.At(pos, ChangeEvent(ld.v, ParamsMap(map[string]float64{ld.linearDistribute.key: val})))
 		pos += width
 		val += diff
 	}
@@ -397,7 +416,7 @@ func (ld *expDistributeTrafo) Pattern(tr *Track) {
 	// tr.At(ld.pos, Change(ld.v, ))
 	pos := ld.pos
 	for i := 0; i < ld.expDistribute.steps; i++ {
-		tr.At(pos, Change(ld.v, ParamsMap(map[string]float64{ld.expDistribute.key: diffs[i]})))
+		tr.At(pos, ChangeEvent(ld.v, ParamsMap(map[string]float64{ld.expDistribute.key: diffs[i]})))
 		pos += width
 		//val += diff
 	}

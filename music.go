@@ -83,8 +83,8 @@ func (m *metronome) Pattern(t *Track) {
 	n := int(t.CurrentBar() / m.unit)
 	half := m.unit / 2
 	for i := 0; i < n; i++ {
-		t.At(m.unit*Measure(i), On(m.voice, m.eventProps))
-		t.At(m.unit*Measure(i)+half, Off(m.voice))
+		t.At(m.unit*Measure(i), OnEvent(m.voice, m.eventProps))
+		t.At(m.unit*Measure(i)+half, OffEvent(m.voice))
 	}
 }
 
@@ -95,7 +95,7 @@ type bar struct {
 }
 
 func (m *bar) Pattern(t *Track) {
-	t.At(M("0"), On(m.voice, m.eventProps))
-	t.At(M("1/8"), Off(m.voice))
+	t.At(M("0"), OnEvent(m.voice, m.eventProps))
+	t.At(M("1/8"), OffEvent(m.voice))
 	m.counter++
 }

@@ -9,20 +9,20 @@ func RoundFloat(x float64, prec int) float64 {
 	return f
 }
 
-type TempoSorted []tempoAt
+type tempoSorted []tempoAt
 
-func (t TempoSorted) Len() int      { return len(t) }
-func (t TempoSorted) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
-func (t TempoSorted) Less(i, j int) bool {
+func (t tempoSorted) Len() int      { return len(t) }
+func (t tempoSorted) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
+func (t tempoSorted) Less(i, j int) bool {
 	return t[i].AbsPos < t[j].AbsPos
 }
 
-type EventsSorted []*Event
+type eventsSorted []*Event
 
-func (t EventsSorted) Len() int      { return len(t) }
-func (t EventsSorted) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
-func (t EventsSorted) Less(i, j int) bool {
-	return t[i].AbsPosition < t[j].AbsPosition
+func (t eventsSorted) Len() int      { return len(t) }
+func (t eventsSorted) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
+func (t eventsSorted) Less(i, j int) bool {
+	return t[i].absPosition < t[j].absPosition
 }
 
 func MillisecsToTick(ms float64) int {

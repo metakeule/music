@@ -21,10 +21,10 @@ var scoreFile = flag.String("score", "", "file to put the score to (must be .scd
 var writeSynthDefs = flag.Bool("write-synthdefs", false, "write synthdefs in scserver mode")
 var loadSamples = flag.Bool("load-samples", false, "load samples in scserver mode")
 
-var _ Generator = &player{}
+var _ generator = &Stage{}
 
-func New() *player {
-	s := &player{
+func New() *Stage {
+	s := &Stage{
 		instrNumber:      2000,
 		sampleInstNumber: 0,
 		synthdefs:        map[string][]byte{},
@@ -50,27 +50,27 @@ func New() *player {
 	return s
 }
 
-func (s *player) NewBusId() int {
+func (s *Stage) newBusId() int {
 	s.busNumber++
 	return s.busNumber
 }
 
-func (s *player) NewGroupId() int {
+func (s *Stage) newGroupId() int {
 	s.groupNumber++
 	return s.groupNumber
 }
 
-func (s *player) NewNodeId() int {
+func (s *Stage) newNodeId() int {
 	s.instrNumber++
 	return s.instrNumber
 }
 
-func (s *player) NewSampleBuffer() int {
+func (s *Stage) newSampleBuffer() int {
 	s.sampleInstNumber++
 	return s.sampleInstNumber
 }
 
-type player struct {
+type Stage struct {
 	buffer           *bytes.Buffer
 	eventbuffer      *bytes.Buffer
 	synthdefs        map[string][]byte
@@ -85,70 +85,70 @@ type player struct {
 	scServerOnline   bool
 	tracks           []*Track
 	synthDefDirs     []string
-	instruments      []Instrument
+	instruments      []instrument
 	groups           map[int]int
 }
 
-func (s *player) Track(bar string, tempo Tempo) *Track {
+func (s *Stage) Track(bar string, tempo Tempo) *Track {
 	tr := newTrack(tempo, M(bar))
 	s.tracks = append(s.tracks, tr)
 	return tr
 }
 
-func (s *player) Instrument(name string, dir string, numVoices int) []*Voice {
+func (s *Stage) Instrument(name string, dir string, numVoices int) []*Voice {
 	if numVoices < 1 {
 		panic("minimum for numVoices: 1")
 	}
 	path := filepath.Join(dir, name+".scd")
 	// fmt.Println("instrument", path)
-	vs := NewSCInstrument(s, name, path, numVoices)
-	s.instruments = append(s.instruments, vs[0].Instrument)
+	vs := newSCInstrument(s, name, path, numVoices)
+	s.instruments = append(s.instruments, vs[0].instrument)
 	return vs
 }
 
-func (s *player) SampleInstrument(instrument string, sampleLib SampleLibrary, numVoices int) []*Voice {
-	vs := NewSCSampleInstrument(s, instrument, sampleLib, numVoices)
-	s.instruments = append(s.instruments, vs[0].Instrument)
+func (s *Stage) SampleInstrument(instrument string, sampleLib SampleLibrary, numVoices int) []*Voice {
+	vs := newSCSampleInstrument(s, instrument, sampleLib, numVoices)
+	s.instruments = append(s.instruments, vs[0].instrument)
 	return vs
 }
 
-func (s *player) Route(name, dir string, numVoices int) []*Voice {
+func (s *Stage) Route(name, dir string, numVoices int) []*Voice {
 	if numVoices < 1 {
 		panic("minimum for numVoices: 1")
 	}
 	path := filepath.Join(dir, name+".scd")
 	// fmt.Println("route", path)
-	vs := NewRoute(s, name, path, numVoices)
-	s.instruments = append(s.instruments, vs[0].Instrument)
+	vs := newRoute(s, name, path, numVoices)
+	s.instruments = append(s.instruments, vs[0].instrument)
 	return vs
 }
 
-func (s *player) Sample(path string, numVoices int) []*Voice {
+func (s *Stage) Sample(path string, numVoices int) []*Voice {
 	if numVoices < 1 {
 		panic("minimum for numVoices: 1")
 	}
-	vs := NewSCSample(s, path, numVoices)
-	s.instruments = append(s.instruments, vs[0].Instrument)
+	vs := newSCSample(s, path, numVoices)
+	s.instruments = append(s.instruments, vs[0].instrument)
 	return vs
 }
 
-func (s *player) SampleFreq(path string, freq float64, numVoices int) []*Voice {
+func (s *Stage) SampleFreq(path string, freq float64, numVoices int) []*Voice {
 	if numVoices < 1 {
 		panic("minimum for numVoices: 1")
 	}
-	vs := NewSCSampleFreq(s, path, freq, numVoices)
-	s.instruments = append(s.instruments, vs[0].Instrument)
+	vs := newSCSampleFreq(s, path, freq, numVoices)
+	s.instruments = append(s.instruments, vs[0].instrument)
 	return vs
 }
 
-func (s *player) Group(parent int) *Voice {
-	v := NewGroup(s)
-	s.groups[v.SCGroup] = parent
+func (s *Stage) Group(parent int) *Voice {
+	v := newGroup(s)
+	s.groups[v.Group] = parent
 	return v
 }
 
-func (s *player) Bus(name string, numchannels int) *Voice {
-	v := NewBus(s, name)
+func (s *Stage) Bus(name string, numchannels int) *Voice {
+	v := newBus(s, name)
 	s.busNumber += numchannels
 	return v
 }
@@ -156,10 +156,10 @@ func (s *player) Bus(name string, numchannels int) *Voice {
 var home = os.Getenv("HOME")
 var SynthDefPool = filepath.Join(home, ".local/share/SuperCollider/quarks/SynthDefPool/pool")
 
-func (s *player) writeSynthDefs(w io.Writer) {
+func (s *Stage) writeSynthDefs(w io.Writer) {
 	for _, instr := range s.instruments {
 		switch t := instr.(type) {
-		case *SCInstrument:
+		case *sCInstrument:
 			if t.IsUsed() {
 				sdef := t.LoadCode()
 				fmt.Fprintf(w, strings.TrimSpace(string(sdef))+".writeDefFile;"+"\n")
@@ -174,19 +174,19 @@ var sampleSynthDef = `SynthDef("sample%d", { |gate=1,bufnum = 0,amp=1, out=0, pa
 	Out.ar(out, Pan2.ar(z, pos: pan, level: amp));
 } ).writeDefFile;`
 
-func (s *player) writeLoadSamples(w io.Writer) {
+func (s *Stage) writeLoadSamples(w io.Writer) {
 	channelPlayers := map[uint]struct{}{}
 
 	for _, instr := range s.instruments {
 		switch t := instr.(type) {
-		case *SCSample:
+		case *sCSample:
 			if t.IsUsed() {
 				if _, has := channelPlayers[t.Sample.Channels]; !has {
 					channelPlayers[t.Sample.Channels] = struct{}{}
 					fmt.Fprintf(w, strings.TrimSpace(sampleSynthDef)+"\n", t.Sample.Channels, t.Sample.Channels)
 				}
 			}
-		case *SCSampleInstrument:
+		case *sCSampleInstrument:
 			if len(t.Samples) > 0 {
 				for _, ch := range t.Channels() {
 					if _, has := channelPlayers[uint(ch)]; !has {
@@ -209,7 +209,7 @@ type eventWriterOptions struct {
 	tickMapped   map[int][]*Event
 }
 
-func (s *player) writeEvents(w io.Writer, opts eventWriterOptions) (skipSecs float32) {
+func (s *Stage) writeEvents(w io.Writer, opts eventWriterOptions) (skipSecs float32) {
 	t := 0
 	// withStartTick := 1.0
 	skipSecs = float32(0.0)
@@ -233,7 +233,7 @@ func (s *player) writeEvents(w io.Writer, opts eventWriterOptions) (skipSecs flo
 		fmt.Fprintf(w, `  [%0.6f`, inSecs)
 		for _, ev := range opts.tickMapped[ti] {
 			// ev.Runner(ev)
-			fmt.Fprintf(w, ev.SCCode.String())
+			fmt.Fprintf(w, ev.sccode.String())
 		}
 		t = ti
 		fmt.Fprintf(w, "],\n")
@@ -243,7 +243,7 @@ func (s *player) writeEvents(w io.Writer, opts eventWriterOptions) (skipSecs flo
 	return
 }
 
-func (s *player) writeAtPosZero(w io.Writer) {
+func (s *Stage) writeAtPosZero(w io.Writer) {
 	// fmt.Printf("used samples: %#v\n", s.usedSamples)
 	fmt.Fprintf(w, `  [%0.6f, `, 0.0)
 
@@ -260,21 +260,21 @@ func (s *player) writeAtPosZero(w io.Writer) {
 
 	for _, instr := range s.instruments {
 		switch t := instr.(type) {
-		case *SCSample:
+		case *sCSample:
 			if t.IsUsed() {
 				if !first_sample {
 					fmt.Fprintf(w, ", ")
 				}
 				first_sample = false
-				fmt.Fprintf(w, fmt.Sprintf("\n"+`[\b_allocRead, %d, "%s"]`, t.Sample.SCBuffer, t.Sample.Path))
+				fmt.Fprintf(w, fmt.Sprintf("\n"+`[\b_allocRead, %d, "%s"]`, t.Sample.sCBuffer, t.Sample.Path))
 			}
-		case *SCSampleInstrument:
+		case *sCSampleInstrument:
 			for _, sample := range t.Samples {
 				if !first_sample {
 					fmt.Fprintf(w, ", ")
 				}
 				first_sample = false
-				fmt.Fprintf(w, fmt.Sprintf("\n"+`[\b_allocRead, %d, "%s"]`, sample.SCBuffer, sample.Path))
+				fmt.Fprintf(w, fmt.Sprintf("\n"+`[\b_allocRead, %d, "%s"]`, sample.sCBuffer, sample.Path))
 			}
 		}
 
@@ -284,7 +284,7 @@ func (s *player) writeAtPosZero(w io.Writer) {
 }
 
 // startOffset is in milliseconds and must be positive
-func (s *player) Play(startOffset uint) {
+func (s *Stage) Play(startOffset uint) {
 
 	evts := []*Event{}
 
@@ -328,23 +328,23 @@ func (s *player) Play(startOffset uint) {
 	startTick := uint(0)
 
 	for _, ev := range evts {
-		currTick := int(ev.Tick)
+		currTick := int(ev.tick)
 		ev.Runner(ev)
 		if ev.Type == "ON" {
-			currTick = MillisecsToTick(ev.Offset) + currTick
+			currTick = MillisecsToTick(ev.offset) + currTick
 		}
 		if ev.Type == "CHANGE" {
-			currTick = MillisecsToTick(ev.Offset) + currTick
+			currTick = MillisecsToTick(ev.offset) + currTick
 		}
 		tickMapped[int(currTick)] = append(tickMapped[int(currTick)], ev)
 		if ev.Type == "fin" {
-			if finTick == 0 || finTick > ev.Tick {
-				finTick = ev.Tick
+			if finTick == 0 || finTick > ev.tick {
+				finTick = ev.tick
 			}
 		}
 		if ev.Type == "start" {
-			if startTick == 0 || startTick < ev.Tick {
-				startTick = ev.Tick
+			if startTick == 0 || startTick < ev.tick {
+				startTick = ev.tick
 			}
 		}
 	}
@@ -452,11 +452,11 @@ func getSeconds(tick int, negativeOffset int, offset float32) float32 {
 	return TickToSeconds(tick+(negativeOffset*(-1))) + 0.000001 + offset
 }
 
-func (s *player) runBulkScServerCode(code string) error {
+func (s *Stage) runBulkScServerCode(code string) error {
 	return s.runScServerCode(strings.Replace(code, "\n", "", -1))
 }
 
-func (s *player) runScServerCode(code string) error {
+func (s *Stage) runScServerCode(code string) error {
 	res, err := http.Post("http://localhost:9999/run", "application/octet-stream", strings.NewReader(code))
 	if err == nil {
 		defer res.Body.Close()
@@ -475,13 +475,13 @@ func (s *player) runScServerCode(code string) error {
 	}
 }
 
-func (s *player) checkForScServer() {
+func (s *Stage) checkForScServer() {
 	if s.runScServerCode(`"Go music script".postln;`) == nil {
 		s.scServerOnline = true
 	}
 }
 
-func (s *player) mkOSCFile(libraryPath, sclangCodeFile string) (ok bool) {
+func (s *Stage) mkOSCFile(libraryPath, sclangCodeFile string) (ok bool) {
 	cmd := exec.Command(
 		"sclang",
 		"-r",
@@ -501,7 +501,7 @@ func (s *player) mkOSCFile(libraryPath, sclangCodeFile string) (ok bool) {
 	return true
 }
 
-func (s *player) mkAudiofile(oscCodeFile, audioFile string, exportFloat bool) (ok bool) {
+func (s *Stage) mkAudiofile(oscCodeFile, audioFile string, exportFloat bool) (ok bool) {
 	// sample rate
 	// channels
 	// file format

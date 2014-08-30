@@ -1,13 +1,13 @@
 package music
 
-type Group struct{}
+type group struct{}
 
-func (g Group) Name() string {
+func (g group) Name() string {
 	return "group"
 }
 
-func NewGroup(g Generator) *Voice {
-	return &Voice{Generator: g, Instrument: Group{}, SCGroup: g.NewGroupId()}
+func newGroup(g generator) *Voice {
+	return &Voice{generator: g, instrument: group{}, Group: g.newGroupId()}
 }
 
 /*

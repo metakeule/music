@@ -7,10 +7,10 @@ type Event struct {
 	Params      Parameter // a special parameter offset may be used to set a per event offset
 	Runner      func(*Event)
 	Type        string
-	Tick        uint
-	AbsPosition Measure // will be enabled when integrated
-	Offset      float64 // offset added to the final position (includes instrument and sample offsets as well as offset set via parameter)
-	SCCode      bytes.Buffer
+	tick        uint
+	absPosition Measure // will be enabled when integrated
+	offset      float64 // offset added to the final position (includes instrument and sample offsets as well as offset set via parameter)
+	sccode      bytes.Buffer
 }
 
 var fin = &Event{Runner: func(*Event) {}, Type: "fin"}
@@ -35,7 +35,7 @@ func (ev *Event) OnMerged(voice *Voice, ps ...Parameter) *Event {
 	p = append(p, ps...)
 	n.Params = Params(p...)
 	n.Voice = voice
-	n.Runner = voice.On
+	n.Runner = voice.OnEvent
 	n.Type = "ON"
 	return n
 }
@@ -51,7 +51,7 @@ func (ev *Event) ChangeMerged(voice *Voice, ps ...Parameter) *Event {
 	p = append(p, ps...)
 	n.Params = Params(p...)
 	n.Voice = voice
-	n.Runner = voice.Change
+	n.Runner = voice.ChangeEvent
 	n.Type = "CHANGE"
 	return n
 }
@@ -59,7 +59,7 @@ func (ev *Event) ChangeMerged(voice *Voice, ps ...Parameter) *Event {
 func (ev *Event) Clone() *Event {
 	n := &Event{Voice: ev.Voice, Runner: ev.Runner}
 	n.Type = ev.Type
-	n.AbsPosition = ev.AbsPosition
+	n.absPosition = ev.absPosition
 	n.Params = ev.Params
 	return n
 }
@@ -68,7 +68,7 @@ func OnEvent(v *Voice, params ...Parameter) *Event {
 	return &Event{
 		Voice:  v,
 		Params: Params(params...),
-		Runner: v.On,
+		Runner: v.OnEvent,
 		Type:   "ON",
 	}
 }
@@ -76,7 +76,7 @@ func OnEvent(v *Voice, params ...Parameter) *Event {
 func OffEvent(v *Voice) *Event {
 	return &Event{
 		Voice:  v,
-		Runner: v.Off,
+		Runner: v.OffEvent,
 		Type:   "OFF",
 	}
 }
@@ -84,7 +84,7 @@ func OffEvent(v *Voice) *Event {
 func MuteEvent(v *Voice) *Event {
 	return &Event{
 		Voice:  v,
-		Runner: v.Mute,
+		Runner: v.setMute,
 		Type:   "MUTE",
 	}
 }
@@ -92,7 +92,7 @@ func MuteEvent(v *Voice) *Event {
 func UnMuteEvent(v *Voice) *Event {
 	return &Event{
 		Voice:  v,
-		Runner: v.UnMute,
+		Runner: v.unsetMute,
 		Type:   "UNMUTE",
 	}
 }
@@ -101,7 +101,7 @@ func ChangeEvent(v *Voice, params ...Parameter) *Event {
 	return &Event{
 		Voice:  v,
 		Params: Params(params...),
-		Runner: v.Change,
+		Runner: v.ChangeEvent,
 		Type:   "CHANGE",
 	}
 }

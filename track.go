@@ -9,8 +9,8 @@ import (
 
 type Track struct {
 	Bars     []Measure
-	AbsPos   Measure
-	Tempi    []tempoAt
+	absPos   Measure
+	tempi    []tempoAt
 	Events   []*Event
 	eachBar  []Pattern
 	compiled bool
@@ -19,9 +19,9 @@ type Track struct {
 
 func newTrack(tempo Tempo, m Measure) *Track {
 	return &Track{
-		AbsPos: Measure(0),
+		absPos: Measure(0),
 		Bars:   []Measure{m},
-		Tempi:  []tempoAt{tempoAt{AbsPos: Measure(0), Tempo: tempo}},
+		tempi:  []tempoAt{tempoAt{AbsPos: Measure(0), Tempo: tempo}},
 	}
 }
 
@@ -46,7 +46,7 @@ func (t *Track) nextBar() {
 		panic("call Start() before Next()/Fill()")
 	}
 	t.Bars = append(t.Bars, t.Bars[len(t.Bars)-1])
-	t.AbsPos = t.AbsPos + t.Bars[len(t.Bars)-1]
+	t.absPos = t.absPos + t.Bars[len(t.Bars)-1]
 	t.Patterns(t.eachBar...)
 }
 
@@ -55,15 +55,15 @@ func (t *Track) changeBar(newBar Measure) {
 		panic("call Start() before Change()")
 	}
 	t.Bars = append(t.Bars, newBar)
-	t.AbsPos = t.AbsPos + t.Bars[len(t.Bars)-1]
+	t.absPos = t.absPos + t.Bars[len(t.Bars)-1]
 	t.Patterns(t.eachBar...)
 }
 
 // raster is, how many ticks will equal to 3 chars width
-func (t *Track) Print(tempo Tempo, unit string, wr io.Writer) {
+func (t *Track) print(tempo Tempo, unit string, wr io.Writer) {
 	raster := int(tempo.MilliSecs(M(unit)))
 
-	if !t.IsCompiled() {
+	if !t.compiled {
 		panic("track is not compiled")
 	}
 	// events must be sorted by tick
@@ -79,7 +79,7 @@ func (t *Track) Print(tempo Tempo, unit string, wr io.Writer) {
 			eventMap = map[int]*Event{}
 		}
 
-		eventMap[int(ev.Tick)] = ev
+		eventMap[int(ev.tick)] = ev
 
 		voiceLines[ev.Voice] = eventMap
 	}
@@ -104,7 +104,7 @@ func (t *Track) Print(tempo Tempo, unit string, wr io.Writer) {
 			ev := evts[sk]
 
 			if j == 0 {
-				fmt.Fprint(wr, ev.Voice.Name()+": ")
+				fmt.Fprint(wr, ev.Voice.instrument.Name()+": ")
 				// fmt.Print(ev.Voice.Name() + " ")
 			}
 			if d > 0 {
@@ -138,7 +138,7 @@ func (t *Track) Print(tempo Tempo, unit string, wr io.Writer) {
 				// fmt.Print("#")
 			}
 
-			tick = int(ev.Tick)
+			tick = int(ev.tick)
 			//ev.Voice
 		}
 
@@ -220,20 +220,20 @@ func (t *Track) BarNum() int {
 //func (t *Track) TempoAt(pos string, tempo Tempo) {
 func (t *Track) SetTempo(pos Measure, tempo Tempo) {
 	num, posInLast := t.CurrentBar().Add(pos)
-	abs := t.AbsPos + Measure(num)*t.CurrentBar() + posInLast
+	abs := t.absPos + Measure(num)*t.CurrentBar() + posInLast
 	tempAt := tempoAt{AbsPos: abs, Tempo: tempo}
 	// fmt.Printf("set tempo to: %v at %v\n", tempo, tempAt.AbsPos)
-	t.Tempi = append(t.Tempi, tempAt)
+	t.tempi = append(t.tempi, tempAt)
 }
 
 func (t *Track) At(pos Measure, events ...*Event) {
 	num, posInLast := t.CurrentBar().Add(pos)
-	abs := t.AbsPos + Measure(num)*t.CurrentBar() + posInLast
+	abs := t.absPos + Measure(num)*t.CurrentBar() + posInLast
 
 	for _, ev := range events {
 		e := ev.Clone()
 		// fmt.Println("absposition", abs)
-		e.AbsPosition = abs
+		e.absPosition = abs
 		t.Events = append(t.Events, e)
 	}
 }
@@ -246,8 +246,8 @@ func (t *Track) TempoAt(abspos Measure) Tempo {
 	// fmt.Printf("search tempo at %v\n", abspos)
 	// t.Tempi is expected to be sorted by BarNum and BarPosition (ascending)
 	// Go through it in reverse order to get the latest tempo change that matches
-	for i := len(t.Tempi) - 1; i >= 0; i-- {
-		ta := t.Tempi[i]
+	for i := len(t.tempi) - 1; i >= 0; i-- {
+		ta := t.tempi[i]
 
 		// if we have a tempochange at the exact position, return it
 		if ta.AbsPos == abspos {
@@ -307,7 +307,7 @@ func (t *Track) compile() {
 
 	tempoChanges := map[Measure]Tempo{}
 
-	for _, tm := range t.Tempi {
+	for _, tm := range t.tempi {
 		tempoChanges[tm.AbsPos] = tm.Tempo
 	}
 
@@ -315,7 +315,7 @@ func (t *Track) compile() {
 
 	for _, ev := range t.Events {
 		//fmt.Println("AbsPosition", ev.AbsPosition)
-		events[ev.AbsPosition] = append(events[ev.AbsPosition], ev)
+		events[ev.absPosition] = append(events[ev.absPosition], ev)
 	}
 
 	//	prevTempoNum := 0
@@ -346,7 +346,7 @@ func (t *Track) compile() {
 			// fmt.Println("millisecs", millisecs)
 			//fmt.Printf("has events at position %v (%v), millisecs: %v\n", i, Measure(i), millisecs)
 			for _, ev := range evts {
-				ev.Tick = uint(millisecs) //currentTempo.MilliSecs(ev.AbsPosition)
+				ev.tick = uint(millisecs) //currentTempo.MilliSecs(ev.AbsPosition)
 			}
 
 			delete(events, Measure(i))
@@ -364,9 +364,11 @@ func (t *Track) compile() {
 	debug.FreeOSMemory()
 }
 
+/*
 func (t *Track) IsCompiled() bool {
 	return t.compiled
 }
+*/
 
 type tempoAt struct {
 	Tick   uint
@@ -374,7 +376,7 @@ type tempoAt struct {
 	AbsPos Measure
 }
 
-func (t *Track) CompileAndPrint(tempo Tempo, unit string, wr io.Writer) {
+func (t *Track) Print(tempo Tempo, unit string, wr io.Writer) {
 	t.compile()
-	t.Print(tempo, unit, wr)
+	t.print(tempo, unit, wr)
 }

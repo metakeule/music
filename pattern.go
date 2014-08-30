@@ -45,19 +45,19 @@ func (sp *seqPlay) PlayDur(pos, dur string, params ...Parameter) Pattern {
 	return &seqPlayTrafo{seqPlay: sp, pos: M(pos), dur: M(dur), overrideParams: Params(params...)}
 }
 
-type seqPlayTrafo struct {
-	*seqPlay
-	pos            Measure
-	dur            Measure
-	overrideParams Parameter
-}
-
 func ParamSequence(v *Voice, initParams Parameter, paramSeq ...Parameter) *seqPlay {
 	return &seqPlay{
 		initParams: initParams,
 		seq:        paramSeq,
 		v:          v,
 	}
+}
+
+type seqPlayTrafo struct {
+	*seqPlay
+	pos            Measure
+	dur            Measure
+	overrideParams Parameter
 }
 
 func (spt *seqPlayTrafo) Params() (p map[string]float64) {
@@ -72,68 +72,6 @@ func (spt *seqPlayTrafo) Pattern(tr *Track) {
 	} else {
 		spt.seqPlay.Pos = 0
 	}
-}
-
-type play struct {
-	pos Measure
-	*Voice
-	Params Parameter
-}
-
-func Play(pos string, v *Voice, params ...Parameter) *play {
-	return &play{M(pos), v, Params(params...)}
-}
-
-func (p *play) Pattern(t *Track) {
-	// fmt.Printf("tempo at %s: %v BPM\n", p.pos, t.TempoAt(p.pos))
-	t.At(p.pos, OnEvent(p.Voice, p.Params))
-}
-
-type playDur struct {
-	pos Measure
-	dur Measure
-	*Voice
-	Params Parameter
-}
-
-func PlayDur(pos, dur string, v *Voice, params ...Parameter) *playDur {
-	return &playDur{M(pos), M(dur), v, Params(params...)}
-}
-
-func (p *playDur) Pattern(t *Track) {
-	// fmt.Printf("tempo at %s: %v BPM\n", p.pos, t.TempoAt(p.pos))
-	t.At(p.pos, OnEvent(p.Voice, p.Params))
-	t.At(p.pos+p.dur, OffEvent(p.Voice))
-}
-
-type exec_ struct {
-	pos   Measure
-	fn    func(e *Event)
-	voice *Voice
-	type_ string
-}
-
-func (e *exec_) Pattern(t *Track) {
-	ev := newEvent(e.voice, e.type_)
-	ev.Runner = e.fn
-	t.At(e.pos, ev)
-}
-
-func Exec(pos string, v *Voice, type_ string, fn func(t *Event)) Pattern {
-	return &exec_{M(pos), fn, v, type_}
-}
-
-type stop struct {
-	pos Measure
-	*Voice
-}
-
-func Stop(pos string, v *Voice) *stop {
-	return &stop{M(pos), v}
-}
-
-func (p *stop) Pattern(t *Track) {
-	t.At(p.pos, OffEvent(p.Voice))
 }
 
 // type end struct{}
@@ -185,20 +123,6 @@ func SetTempo(at string, t Tempo) *setTempo {
 
 func (s *setTempo) Pattern(t *Track) {
 	t.SetTempo(s.Pos, s.Tempo)
-}
-
-type mod struct {
-	pos Measure
-	*Voice
-	Params Parameter
-}
-
-func Modify(pos string, v *Voice, params ...Parameter) *mod {
-	return &mod{M(pos), v, Params(params...)}
-}
-
-func (p *mod) Pattern(t *Track) {
-	t.At(p.pos, ChangeEvent(p.Voice, p.Params))
 }
 
 type times struct {
@@ -386,40 +310,4 @@ func (ld *expDistributeTrafo) Pattern(tr *Track) {
 		pos += width
 		//val += diff
 	}
-}
-
-func Metronome(voice *Voice, unit Measure, parameter ...Parameter) *metronome {
-	return &metronome{voice: voice, unit: unit, eventProps: Params(parameter...)}
-}
-
-func Bar(voice *Voice, parameter ...Parameter) *bar {
-	return &bar{voice: voice, eventProps: Params(parameter...)}
-}
-
-type metronome struct {
-	last       Measure
-	voice      *Voice
-	unit       Measure
-	eventProps Parameter
-}
-
-func (m *metronome) Pattern(t *Track) {
-	n := int(t.CurrentBar() / m.unit)
-	half := m.unit / 2
-	for i := 0; i < n; i++ {
-		t.At(m.unit*Measure(i), OnEvent(m.voice, m.eventProps))
-		t.At(m.unit*Measure(i)+half, OffEvent(m.voice))
-	}
-}
-
-type bar struct {
-	voice      *Voice
-	counter    float64
-	eventProps Parameter
-}
-
-func (m *bar) Pattern(t *Track) {
-	t.At(M("0"), OnEvent(m.voice, m.eventProps))
-	t.At(M("1/8"), OffEvent(m.voice))
-	m.counter++
 }

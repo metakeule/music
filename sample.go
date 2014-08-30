@@ -6,26 +6,26 @@ import (
 	"io/ioutil"
 )
 
-type SCSample struct {
-	*SCInstrument
+type sCSample struct {
+	*sCInstrument
 	*Sample
 }
 
-func NewSCSampleFreq(g Generator, path string, freq float64, numVoices int) []*Voice {
-	vs := NewSCSample(g, path, numVoices)
-	vs[0].Instrument.(*SCSample).Sample.Frequency = freq
+func newSCSampleFreq(g generator, path string, freq float64, numVoices int) []*Voice {
+	vs := newSCSample(g, path, numVoices)
+	vs[0].instrument.(*sCSample).Sample.Frequency = freq
 	return vs
 }
 
-func NewSCSample(g Generator, path string, numVoices int) []*Voice {
+func newSCSample(g generator, path string, numVoices int) []*Voice {
 	sample := NewSample(path)
-	sample.SCBuffer = g.NewSampleBuffer()
-	instr := &SCInstrument{
+	sample.sCBuffer = g.newSampleBuffer()
+	instr := &sCInstrument{
 		name: fmt.Sprintf("sample%d", sample.Channels),
 		Path: "",
 	}
-	i := &SCSample{SCInstrument: instr, Sample: sample}
-	return Voices(numVoices, g, i, -1)
+	i := &sCSample{sCInstrument: instr, Sample: sample}
+	return _voices(numVoices, g, i, -1)
 }
 
 type SampleLibrary interface {
@@ -33,30 +33,30 @@ type SampleLibrary interface {
 	Channels() []int // channel variants
 }
 
-type SCSampleInstrument struct {
+type sCSampleInstrument struct {
 	SampleLibrary
 	// path => *Sample
 	Samples    map[string]*Sample
 	instrument string
-	g          Generator
+	g          generator
 }
 
-func (s *SCSampleInstrument) Name() string {
+func (s *sCSampleInstrument) Name() string {
 	return "samplelibrary"
 }
 
-func NewSCSampleInstrument(g Generator, instrument string, sampleLib SampleLibrary, numVoices int) []*Voice {
-	i := &SCSampleInstrument{sampleLib, map[string]*Sample{}, instrument, g}
-	return Voices(numVoices, g, i, -1)
+func newSCSampleInstrument(g generator, instrument string, sampleLib SampleLibrary, numVoices int) []*Voice {
+	i := &sCSampleInstrument{sampleLib, map[string]*Sample{}, instrument, g}
+	return _voices(numVoices, g, i, -1)
 }
 
-func (s *SCSampleInstrument) Sample(params map[string]float64) *Sample {
+func (s *sCSampleInstrument) Sample(params map[string]float64) *Sample {
 	samplePath := s.SampleLibrary.SamplePath(s.instrument, params)
 	sample, has := s.Samples[samplePath]
 	if !has {
 		sample = NewSample(samplePath)
 		s.Samples[samplePath] = sample
-		sample.SCBuffer = s.g.NewSampleBuffer()
+		sample.sCBuffer = s.g.newSampleBuffer()
 	}
 	return sample
 }
@@ -65,7 +65,7 @@ type Sample struct {
 	Path         string  // the path of the sample
 	Offset       float64 // offset in milliseconds until max amplitude must be positiv
 	MaxAmp       float64 // max amplitude value, must be between 0 and 1
-	SCBuffer     int     // the sc buffer number
+	sCBuffer     int     // the sc buffer number
 	Channels     uint    // number of channels
 	NumFrames    int     // number of frames
 	SampleRate   int     // e.g. 44100

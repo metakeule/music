@@ -32,13 +32,16 @@ func (t *Track) SetLoop(name string, patterns ...Pattern) *Track {
 	return t
 }
 
-// RemoveLoop removes all loops if name == ""
-func (t *Track) RemoveLoop(name string) *Track {
-	if name == "" {
+// RemoveLoops removes all loops if no names is passed
+func (t *Track) RemoveLoops(names ...string) *Track {
+	if len(names) == 0 {
 		t.loops = map[string]Pattern{}
 		return t
 	}
-	delete(t.loops, name)
+
+	for _, name := range names {
+		delete(t.loops, name)
+	}
 	return t
 }
 

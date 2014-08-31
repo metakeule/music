@@ -81,6 +81,7 @@ func OffEvent(v *Voice) *Event {
 	}
 }
 
+/*
 func MuteEvent(v *Voice) *Event {
 	return &Event{
 		Voice:  v,
@@ -96,6 +97,7 @@ func UnMuteEvent(v *Voice) *Event {
 		Type:   "UNMUTE",
 	}
 }
+*/
 
 func ChangeEvent(v *Voice, params ...Parameter) *Event {
 	return &Event{

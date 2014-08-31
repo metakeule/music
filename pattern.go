@@ -19,15 +19,11 @@ type seqModTrafo struct {
 	*seqPlay
 	pos            Measure
 	overrideParams Parameter
+	params         Parameter
 }
 
 func (sm *seqModTrafo) Pattern(tr *Track) {
-	tr.At(sm.pos, ChangeEvent(sm.seqPlay.v, Params(sm.seqPlay.seq[sm.seqPlay.Pos], sm.overrideParams)))
-	if sm.seqPlay.Pos < len(sm.seqPlay.seq)-1 {
-		sm.seqPlay.Pos++
-	} else {
-		sm.seqPlay.Pos = 0
-	}
+	tr.At(sm.pos, ChangeEvent(sm.seqPlay.v, Params(sm.params, sm.overrideParams)))
 }
 
 type seqPlay struct {
@@ -38,11 +34,23 @@ type seqPlay struct {
 }
 
 func (sp *seqPlay) Modify(pos string, params ...Parameter) Pattern {
-	return &seqModTrafo{seqPlay: sp, pos: M(pos), overrideParams: Params(params...)}
+	params_ := sp.seq[sp.Pos]
+	if sp.Pos < len(sp.seq)-1 {
+		sp.Pos++
+	} else {
+		sp.Pos = 0
+	}
+	return &seqModTrafo{seqPlay: sp, pos: M(pos), overrideParams: Params(params...), params: params_}
 }
 
 func (sp *seqPlay) PlayDur(pos, dur string, params ...Parameter) Pattern {
-	return &seqPlayTrafo{seqPlay: sp, pos: M(pos), dur: M(dur), overrideParams: Params(params...)}
+	params_ := sp.seq[sp.Pos]
+	if sp.Pos < len(sp.seq)-1 {
+		sp.Pos++
+	} else {
+		sp.Pos = 0
+	}
+	return &seqPlayTrafo{seqPlay: sp, pos: M(pos), dur: M(dur), overrideParams: Params(params...), params: params_}
 }
 
 func ParamSequence(v *Voice, initParams Parameter, paramSeq ...Parameter) *seqPlay {
@@ -58,20 +66,26 @@ type seqPlayTrafo struct {
 	pos            Measure
 	dur            Measure
 	overrideParams Parameter
+	params         Parameter
 }
 
+/*
 func (spt *seqPlayTrafo) Params() (p map[string]float64) {
 	return Params(spt.seqPlay.initParams, spt.seqPlay.seq[spt.seqPlay.Pos], spt.overrideParams).Params()
 }
+*/
 
 func (spt *seqPlayTrafo) Pattern(tr *Track) {
-	tr.At(spt.pos, OnEvent(spt.seqPlay.v, spt))
+	params := Params(spt.seqPlay.initParams, spt.params, spt.overrideParams)
+	tr.At(spt.pos, OnEvent(spt.seqPlay.v, params))
 	tr.At(spt.pos+spt.dur, OffEvent(spt.seqPlay.v))
-	if spt.seqPlay.Pos < len(spt.seqPlay.seq)-1 {
-		spt.seqPlay.Pos++
-	} else {
-		spt.seqPlay.Pos = 0
-	}
+	/*
+		if spt.seqPlay.Pos < len(spt.seqPlay.seq)-1 {
+			spt.seqPlay.Pos++
+		} else {
+			spt.seqPlay.Pos = 0
+		}
+	*/
 }
 
 // type end struct{}
@@ -181,6 +195,14 @@ func (ts *tempoSpanTrafo) Pattern(t *Track) {
 	t.SetTempo(M(ts.pos), BPM(newtempo))
 }
 
+func StepAdd(current, step float64) float64 {
+	return current + step
+}
+
+func StepMultiply(current, step float64) float64 {
+	return current * step
+}
+
 // for start = -1 takes the current tempo
 func TempoSequence(start float64, step float64, modifier func(current, step float64) float64) *tempoSpan {
 	return &tempoSpan{current: start, step: step, modifier: modifier}
@@ -252,7 +274,21 @@ func LinearDistribution(param string, from, to float64, n int, dur Measure) *lin
 }
 
 func (l *linearDistribute) ModifyDistributed(position string, v *Voice) Pattern {
-	return &linearDistributeTrafo{l, v, M(position)}
+	//return &linearDistributeTrafo{l, v, M(position)}
+	p := []Pattern{}
+	width, diff := LinearDistributedValues(l.from, l.to, l.steps, l.dur)
+	// tr.At(ld.pos, Change(ld.v, ))
+	pos := M(position)
+	val := l.from
+	for i := 0; i < l.steps; i++ {
+		// println(pos.String())
+		p = append(p, &mod{pos, v, ParamsMap(map[string]float64{l.key: val})})
+		// tr.At(pos, ChangeEvent(ld.v, ParamsMap(map[string]float64{ld.linearDistribute.key: val})))
+		pos += width
+		val += diff
+	}
+
+	return Patterns(p...)
 }
 
 type linearDistributeTrafo struct {
@@ -261,6 +297,7 @@ type linearDistributeTrafo struct {
 	pos Measure
 }
 
+/*
 func (ld *linearDistributeTrafo) Pattern(tr *Track) {
 	width, diff := LinearDistributedValues(ld.linearDistribute.from, ld.linearDistribute.to, ld.linearDistribute.steps, ld.linearDistribute.dur)
 	// tr.At(ld.pos, Change(ld.v, ))
@@ -272,6 +309,7 @@ func (ld *linearDistributeTrafo) Pattern(tr *Track) {
 		val += diff
 	}
 }
+*/
 
 // ---------------------------------------
 
@@ -292,7 +330,18 @@ func ExponentialDistribution(param string, from, to float64, n int, dur Measure)
 }
 
 func (l *expDistribute) ModifyDistributed(position string, v *Voice) Pattern {
-	return &expDistributeTrafo{l, v, M(position)}
+	p := []Pattern{}
+	width, diffs := ExponentialDistributedValues(l.from, l.to, l.steps, l.dur)
+	// tr.At(ld.pos, Change(ld.v, ))
+	pos := M(position)
+	for i := 0; i < l.steps; i++ {
+		p = append(p, &mod{pos, v, ParamsMap(map[string]float64{l.key: diffs[i]})})
+		//tr.At(pos, ChangeEvent(ld.v, ParamsMap(map[string]float64{ld.expDistribute.key: diffs[i]})))
+		pos += width
+		//val += diff
+	}
+	//return &expDistributeTrafo{l, v, M(position)}
+	return Patterns(p...)
 }
 
 type expDistributeTrafo struct {
@@ -301,6 +350,7 @@ type expDistributeTrafo struct {
 	pos Measure
 }
 
+/*
 func (ld *expDistributeTrafo) Pattern(tr *Track) {
 	width, diffs := ExponentialDistributedValues(ld.expDistribute.from, ld.expDistribute.to, ld.expDistribute.steps, ld.expDistribute.dur)
 	// tr.At(ld.pos, Change(ld.v, ))
@@ -311,3 +361,4 @@ func (ld *expDistributeTrafo) Pattern(tr *Track) {
 		//val += diff
 	}
 }
+*/

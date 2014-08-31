@@ -13,9 +13,8 @@ type Voice struct {
 	instrument           instrument
 	scnode               int // the node id of the voice
 	Group                int
-	mute                 bool
 	Bus                  int
-	lastInstrumentSample *Sample // the last sample played by a sample instrument
+	lastInstrumentSample *Sample // the last sample played by a sample instrument, get rid of it
 }
 
 type playDur struct {
@@ -88,6 +87,7 @@ func (p *mod) Pattern(t *Track) {
 	t.At(p.pos, ChangeEvent(p.Voice, p.Params))
 }
 
+/*
 type mute struct {
 	v    *Voice
 	pos  Measure
@@ -100,7 +100,9 @@ func (m *mute) Pattern(t *Track) {
 	}
 	t.At(m.pos, UnMuteEvent(m.v))
 }
+*/
 
+/*
 func (v *Voice) Mute(pos string) Pattern {
 	return &mute{v, M(pos), true}
 }
@@ -108,6 +110,7 @@ func (v *Voice) Mute(pos string) Pattern {
 func (v *Voice) UnMute(pos string) Pattern {
 	return &mute{v, M(pos), false}
 }
+*/
 
 func (v *Voice) Modify(pos string, params ...Parameter) Pattern {
 	return &mod{M(pos), v, Params(params...)}
@@ -161,6 +164,7 @@ func (v *Voice) paramsStr(params map[string]float64) string {
 	return buf.String()
 }
 
+/*
 func (v *Voice) setMute(ev *Event) {
 	v.mute = true
 	v.OffEvent(ev)
@@ -169,6 +173,7 @@ func (v *Voice) setMute(ev *Event) {
 func (v *Voice) unsetMute(*Event) {
 	v.mute = false
 }
+*/
 
 func ratedOffset(sampleOffset float64, params map[string]float64) float64 {
 	rate, hasRate := params["rate"]
@@ -176,6 +181,41 @@ func ratedOffset(sampleOffset float64, params map[string]float64) float64 {
 		return sampleOffset * (-1)
 	}
 	return (-1) * sampleOffset / rate
+}
+
+func (v *Voice) getCode(ev *Event) string {
+	//fmt.Println(ev.Type)
+	res := ""
+	switch ev.Type {
+	case "ON":
+		var bf bytes.Buffer
+		oldNode := v.scnode
+		if oldNode != 0 && oldNode > 2000 {
+			// if oldNode != 0 {
+			fmt.Fprintf(&bf, `, [\n_free, %d]`, oldNode)
+		}
+		v.scnode = v.newNodeId()
+		//s := strings.Replace(ev.sccode.String(), "##OLD_NODE##", fmt.Sprintf("%d", v.scnode), -1)
+		bf.WriteString(strings.Replace(ev.sccode.String(), "##NODE##", fmt.Sprintf("%d", v.scnode), -1))
+		//bf.WriteString(ev.sccode.String())
+		res = bf.String()
+		//fmt.Sprintf(ev.sccode.String(), ...)
+	case "OFF":
+		if v.scnode == 0 {
+			return ""
+		}
+		res = strings.Replace(ev.sccode.String(), "##NODE##", fmt.Sprintf("%d", v.scnode), -1)
+		//res = ev.sccode.String()
+	case "CHANGE":
+		if v.scnode == 0 {
+			return ""
+		}
+		res = strings.Replace(ev.sccode.String(), "##NODE##", fmt.Sprintf("%d", v.scnode), -1)
+		//res = ev.sccode.String()
+	}
+
+	// fmt.Printf("%s %p %s %s\n", v.instrument.Name(), v, ev.Type, res)
+	return res
 }
 
 func (v *Voice) OnEvent(ev *Event) {
@@ -188,9 +228,11 @@ func (v *Voice) OnEvent(ev *Event) {
 		panic("On not supported for groups")
 	}
 
-	if v.mute {
-		return
-	}
+	/*
+		if v.mute {
+			return
+		}
+	*/
 
 	if cl, ok := v.instrument.(codeLoader); ok {
 		cl.Use()
@@ -217,14 +259,18 @@ func (v *Voice) OnEvent(ev *Event) {
 		delete(params, "offset")
 	}
 
-	oldNode := v.scnode
-	_ = oldNode
-	v.scnode = v.newNodeId()
+	/*
+		oldNode := v.scnode
+		_ = oldNode
+		v.scnode = v.newNodeId()
+	*/
 
-	if oldNode != 0 && oldNode > 2000 {
-		// fmt.Fprintf(&ev.SCCode, `, [\n_set, %d, \gate, -1]`, oldNode)
-		fmt.Fprintf(&ev.sccode, `, [\n_free, %d]`, oldNode)
-	}
+	//if oldNode != 0 && oldNode > 2000 {
+	// fmt.Fprintf(&ev.SCCode, `, [\n_set, %d, \gate, -1]`, oldNode)
+	//fmt.Fprintf(&ev.sccode, `, [\n_free, %d]`, oldNode)
+	//}
+
+	//fmt.Fprintf(&ev.sccode, `, [\n_free, %d]`, oldNode)
 
 	switch i := v.instrument.(type) {
 	case *sCInstrument:
@@ -238,9 +284,10 @@ func (v *Voice) OnEvent(ev *Event) {
 		bufnum := i.Sample.sCBuffer
 		fmt.Fprintf(
 			&ev.sccode,
-			`, [\s_new, \%s, %d, 0, 0, \bufnum, %d%s]`,
+			//`, [\s_new, \%s, %d, 0, 0, \bufnum, %d%s]`,
+			`, [\s_new, \%s, ##NODE##, 0, 0, \bufnum, %d%s]`,
 			v.instrument.Name(),
-			v.scnode,
+			// v.scnode,
 			bufnum,
 			v.paramsStr(params),
 		)
@@ -258,9 +305,10 @@ func (v *Voice) OnEvent(ev *Event) {
 		v.lastInstrumentSample = sample
 		fmt.Fprintf(
 			&ev.sccode,
-			`, [\s_new, \%s, %d, 0, 0, \bufnum, %d%s]`,
+			//`, [\s_new, \%s, %d, 0, 0, \bufnum, %d%s]`,
+			`, [\s_new, \%s, ##NODE##, 0, 0, \bufnum, %d%s]`,
 			fmt.Sprintf("sample%d", sample.Channels),
-			v.scnode,
+			// v.scnode,
 			bufnum,
 			v.paramsStr(params),
 		)
@@ -269,14 +317,12 @@ func (v *Voice) OnEvent(ev *Event) {
 		return
 	}
 
-	fmt.Fprintf(&ev.sccode, `, [\s_new, \%s, %d, 1, %d%s]`, v.instrument.Name(), v.scnode, group, v.paramsStr(params))
+	// fmt.Fprintf(&ev.sccode, `, [\s_new, \%s, %d, 1, %d%s]`, v.instrument.Name(), v.scnode, group, v.paramsStr(params))
+	fmt.Fprintf(&ev.sccode, `, [\s_new, \%s, ##NODE##, 1, %d%s]`, v.instrument.Name(), group, v.paramsStr(params))
 
 }
 
 func (v *Voice) ChangeEvent(ev *Event) {
-	if v.scnode == 0 {
-		return
-	}
 
 	params := ev.Params.Params()
 
@@ -326,9 +372,11 @@ func (v *Voice) ChangeEvent(ev *Event) {
 
 			switch pre {
 			case "_map":
-				fmt.Fprintf(&ev.sccode, `, [\n_map, %d, \%s, %d]`, v.scnode, param, int(val))
+				//fmt.Fprintf(&ev.sccode, `, [\n_map, %d, \%s, %d]`, v.scnode, param, int(val))
+				fmt.Fprintf(&ev.sccode, `, [\n_map, ##NODE##, \%s, %d]`, param, int(val))
 			case "_mapa":
-				fmt.Fprintf(&ev.sccode, `, [\n_mapa, %d, \%s, %d]`, v.scnode, param, int(val))
+				//fmt.Fprintf(&ev.sccode, `, [\n_mapa, %d, \%s, %d]`, v.scnode, param, int(val))
+				fmt.Fprintf(&ev.sccode, `, [\n_mapa, ##NODE##, \%s, %d]`, param, int(val))
 			default:
 				panic("unknown special parameter must be '_map-[key] or _mapa-[key]")
 			}
@@ -352,7 +400,8 @@ func (v *Voice) ChangeEvent(ev *Event) {
 		}
 	}
 
-	fmt.Fprintf(&ev.sccode, `, [\n_set, %d%s]`, v.scnode, v.paramsStr(params))
+	//fmt.Fprintf(&ev.sccode, `, [\n_set, %d%s]`, v.scnode, v.paramsStr(params))
+	fmt.Fprintf(&ev.sccode, `, [\n_set, ##NODE##%s]`, v.paramsStr(params))
 }
 
 func (v *Voice) OffEvent(ev *Event) {
@@ -363,13 +412,10 @@ func (v *Voice) OffEvent(ev *Event) {
 	if _, isGroup := v.instrument.(group); isGroup {
 		panic("Off not supported for groups")
 	}
-	if v.scnode == 0 {
-		// fmt.Println("can't stop not existing node for instrument " + v.Instrument.Name())
-		return
-	}
 
 	v.lastInstrumentSample = nil
-	fmt.Fprintf(&ev.sccode, `, [\n_set, %d, \gate, -1]`, v.scnode)
+	//fmt.Fprintf(&ev.sccode, `, [\n_set, %d, \gate, -1]`, v.scnode)
+	fmt.Fprintf(&ev.sccode, `, [\n_set, ##NODE##, \gate, -1]`)
 }
 
 type codeLoader interface {
@@ -423,6 +469,7 @@ func (vs voices) Play(pos string, params ...Parameter) Pattern {
 	return Patterns(ps...)
 }
 
+/*
 func (vs voices) Mute(pos string) Pattern {
 	ps := []Pattern{}
 	for _, v := range vs {
@@ -438,6 +485,7 @@ func (vs voices) UnMute(pos string) Pattern {
 	}
 	return Patterns(ps...)
 }
+*/
 
 func (vs voices) SetBus(bus int) {
 	if bus < 1 {

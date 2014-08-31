@@ -229,14 +229,27 @@ func (s *Stage) writeEvents(w io.Writer, opts eventWriterOptions) (skipSecs floa
 			break
 		}
 		inSecs := getSeconds(ti, opts.tickNegative, beginOffset)
+
 		// inSecs := tickToSeconds(ti+(tickNegative*(-1))) + 0.000001 + beginOffset
-		fmt.Fprintf(w, `  [%0.6f`, inSecs)
+
+		var tickBf bytes.Buffer
+
+		// if len(opts.tickMapped[ti]) > 0 {
 		for _, ev := range opts.tickMapped[ti] {
+			code := ev.Voice.getCode(ev)
+			if code != "" {
+				tickBf.WriteString(code)
+				// fmt.Fprintf(w, code)
+			}
 			// ev.Runner(ev)
-			fmt.Fprintf(w, ev.sccode.String())
+			//fmt.Fprintf(w, ev.sccode.String())
 		}
+		if tbf := tickBf.String(); tbf != "" {
+			fmt.Fprintf(w, `  [%0.6f%s`, inSecs, tbf)
+			fmt.Fprintf(w, "],\n")
+		}
+		// }
 		t = ti
-		fmt.Fprintf(w, "],\n")
 	}
 
 	fmt.Fprintf(w, "  [%0.6f, [\\g_deepFree, 1], [\\c_set, 0, 0]]];\n", float32(t)/float32(1000000000))
@@ -336,7 +349,11 @@ func (s *Stage) Play(startOffset uint) {
 		if ev.Type == "CHANGE" {
 			currTick = MillisecsToTick(ev.offset) + currTick
 		}
-		tickMapped[int(currTick)] = append(tickMapped[int(currTick)], ev)
+
+		if ev.Type == "ON" || ev.Type == "CHANGE" || ev.Type == "OFF" {
+			tickMapped[int(currTick)] = append(tickMapped[int(currTick)], ev)
+		}
+
 		if ev.Type == "fin" {
 			if finTick == 0 || finTick > ev.tick {
 				finTick = ev.tick

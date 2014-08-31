@@ -8,11 +8,12 @@ import (
 )
 
 type Track struct {
-	Bars     []Measure
-	absPos   Measure
-	tempi    []tempoAt
-	Events   []*Event
-	eachBar  []Pattern
+	Bars   []Measure
+	absPos Measure
+	tempi  []tempoAt
+	Events []*Event
+	// loops  []Pattern
+	loops    map[string]Pattern
 	compiled bool
 	started  bool
 }
@@ -21,21 +22,34 @@ func newTrack(tempo Tempo, m Measure) *Track {
 	return &Track{
 		absPos: Measure(0),
 		Bars:   []Measure{m},
+		loops:  map[string]Pattern{},
 		tempi:  []tempoAt{tempoAt{AbsPos: Measure(0), Tempo: tempo}},
 	}
 }
 
-func (t *Track) SetEachBar(eachBar ...Pattern) *Track {
-	t.eachBar = eachBar
+func (t *Track) SetLoop(name string, patterns ...Pattern) *Track {
+	t.loops[name] = Patterns(patterns...)
 	return t
 }
 
-func (t *Track) EachBar() []Pattern {
-	return t.eachBar
+// RemoveLoop removes all loops if name == ""
+func (t *Track) RemoveLoop(name string) *Track {
+	if name == "" {
+		t.loops = map[string]Pattern{}
+		return t
+	}
+	delete(t.loops, name)
+	return t
+}
+
+func (t *Track) GetLoop(name string) Pattern {
+	return t.loops[name]
 }
 
 func (t *Track) Start(patterns ...Pattern) *Track {
-	t.Patterns(t.eachBar...)
+	for _, pt := range t.loops {
+		t.Patterns(pt)
+	}
 	t.Patterns(patterns...)
 	t.started = true
 	return t
@@ -47,7 +61,9 @@ func (t *Track) nextBar() {
 	}
 	t.Bars = append(t.Bars, t.Bars[len(t.Bars)-1])
 	t.absPos = t.absPos + t.Bars[len(t.Bars)-1]
-	t.Patterns(t.eachBar...)
+	for _, pt := range t.loops {
+		t.Patterns(pt)
+	}
 }
 
 func (t *Track) changeBar(newBar Measure) {
@@ -56,7 +72,9 @@ func (t *Track) changeBar(newBar Measure) {
 	}
 	t.Bars = append(t.Bars, newBar)
 	t.absPos = t.absPos + t.Bars[len(t.Bars)-1]
-	t.Patterns(t.eachBar...)
+	for _, pt := range t.loops {
+		t.Patterns(pt)
+	}
 }
 
 // raster is, how many ticks will equal to 3 chars width

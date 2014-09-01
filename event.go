@@ -3,14 +3,16 @@ package music
 import "bytes"
 
 type Event struct {
-	Voice       *Voice
-	Params      Parameter // a special parameter offset may be used to set a per event offset
-	Runner      func(*Event)
-	Type        string
-	tick        uint
-	absPosition Measure // will be enabled when integrated
-	offset      float64 // offset added to the final position (includes instrument and sample offsets as well as offset set via parameter)
-	sccode      bytes.Buffer
+	Voice                     *Voice
+	Params                    Parameter // a special parameter offset may be used to set a per event offset
+	Runner                    func(*Event)
+	Type                      string
+	tick                      uint
+	absPosition               Measure // will be enabled when integrated
+	offset                    float64 // offset added to the final position (includes instrument and sample offsets as well as offset set via parameter)
+	sccode                    bytes.Buffer
+	changedParamsPrepared     map[string]float64
+	sampleInstrumentFrequency float64
 }
 
 var fin = &Event{Runner: func(*Event) {}, Type: "fin"}
@@ -81,11 +83,10 @@ func OffEvent(v *Voice) *Event {
 	}
 }
 
-/*
 func MuteEvent(v *Voice) *Event {
 	return &Event{
 		Voice:  v,
-		Runner: v.setMute,
+		Runner: v.OffEvent,
 		Type:   "MUTE",
 	}
 }
@@ -93,11 +94,10 @@ func MuteEvent(v *Voice) *Event {
 func UnMuteEvent(v *Voice) *Event {
 	return &Event{
 		Voice:  v,
-		Runner: v.unsetMute,
+		Runner: v.donothing,
 		Type:   "UNMUTE",
 	}
 }
-*/
 
 func ChangeEvent(v *Voice, params ...Parameter) *Event {
 	return &Event{

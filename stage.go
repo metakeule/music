@@ -350,7 +350,7 @@ func (s *Stage) Play(startOffset uint) {
 			currTick = MillisecsToTick(ev.offset) + currTick
 		}
 
-		if ev.Type == "ON" || ev.Type == "CHANGE" || ev.Type == "OFF" {
+		if ev.Type == "ON" || ev.Type == "CHANGE" || ev.Type == "OFF" || ev.Type == "MUTE" || ev.Type == "UNMUTE" {
 			tickMapped[int(currTick)] = append(tickMapped[int(currTick)], ev)
 		}
 

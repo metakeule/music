@@ -11,6 +11,7 @@ import (
 
 type Scale interface {
 	Degree(degree int) music.Parameter
+	Base() note.Note
 }
 
 type Chromatic struct {
@@ -47,10 +48,18 @@ func (s *Chromatic) Degree(scalePosition int) music.Parameter {
 	//return note.MidiCps(float64(s.BaseNote) + float64(scalePosition))
 }
 
+func (s *Chromatic) Base() note.Note {
+	return s.BaseNote
+}
+
 type Periodic struct {
 	Steps             []uint // each steps in factor of chromatic steps, begins with the second step (first is basetone)
 	NumChromaticSteps uint   // the number of chromatic steps that correspond to one scale periodicy
 	BaseNote          note.Note
+}
+
+func (s *Periodic) Base() note.Note {
+	return s.BaseNote
 }
 
 // TODO: test it
@@ -180,3 +189,85 @@ var Mood = map[string]func(base note.Note) *Periodic{
 	"pious":    Hypolydian,
 	"youthful": Mixolydian,
 }
+
+type stepper struct {
+	Scale   Scale
+	Step    int
+	Degrees []int
+}
+
+func NewStepper(scale Scale, degrees ...int) *stepper {
+	if len(degrees) < 1 {
+		panic("must have at least 1 degree")
+	}
+	return &stepper{Scale: scale, Degrees: degrees}
+}
+
+func (s *Periodic) Stepper(degrees ...int) *stepper {
+	return NewStepper(s, degrees...)
+}
+
+func (s *Chromatic) Stepper(degrees ...int) *stepper {
+	return NewStepper(s, degrees...)
+}
+
+func (s *stepper) Params() map[string]float64 {
+	degr := s.Degrees[s.Step]
+	if s.Step < len(s.Degrees)-1 {
+		s.Step++
+	} else {
+		s.Step = 0
+	}
+	return s.Scale.Degree(degr).Params()
+}
+
+/*
+func (s *stepper) SetScale(scale Scale) *stepper {
+	return &stepper{
+		scale:   scale,
+		degrees: s.degrees,
+		step:    s.step,
+	}
+}
+*/
+/*
+func (s *stepper) SetScale(scale Scale) {
+	s.scale = scale
+}
+*/
+
+/*
+func (s *stepper) SetDegrees(degrees ...int) *stepper {
+	if len(degrees) < 1 {
+		panic("must have at least 1 degree")
+	}
+	return &stepper{
+		scale:   s.scale,
+		degrees: degrees,
+		step:    0,
+	}
+}
+*/
+
+/*
+func (s *stepper) SetDegrees(degrees ...int) {
+	if len(degrees) < 1 {
+		panic("must have at least 1 degree")
+	}
+	s.step = 0
+	s.degrees = degrees
+}
+*/
+
+/*
+func (r *rhythm) pos() (pos_ string) {
+	pos_ = r.positions[r.positionsIndex]
+	if r.positionsIndex < len(r.positions)-1 {
+		r.positionsIndex++
+	} else {
+		r.positionsIndex = 0
+	}
+	return pos_
+}
+
+*/

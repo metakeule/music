@@ -35,7 +35,7 @@ func (ev *Event) OnMerged(voice *Voice, ps ...Parameter) *Event {
 	n := ev.Clone()
 	p := []Parameter{ev.Params}
 	p = append(p, ps...)
-	n.Params = Params(p...)
+	n.Params = MixParams(p...)
 	n.Voice = voice
 	n.Runner = voice.OnEvent
 	n.Type = "ON"
@@ -51,7 +51,7 @@ func (ev *Event) ChangeMerged(voice *Voice, ps ...Parameter) *Event {
 	n := ev.Clone()
 	p := []Parameter{ev.Params}
 	p = append(p, ps...)
-	n.Params = Params(p...)
+	n.Params = MixParams(p...)
 	n.Voice = voice
 	n.Runner = voice.ChangeEvent
 	n.Type = "CHANGE"
@@ -66,44 +66,60 @@ func (ev *Event) Clone() *Event {
 	return n
 }
 
-func OnEvent(v *Voice, params ...Parameter) *Event {
+var OnEvent = EventGenerator(func(v *Voice, params ...Parameter) *Event {
 	return &Event{
 		Voice:  v,
-		Params: Params(params...),
+		Params: MixParams(params...),
 		Runner: v.OnEvent,
 		Type:   "ON",
 	}
-}
+})
 
-func OffEvent(v *Voice) *Event {
+// params are ignored, just to fullfill the EventGenerator interface
+var OffEvent = EventGenerator(func(v *Voice, params ...Parameter) *Event {
 	return &Event{
 		Voice:  v,
 		Runner: v.OffEvent,
 		Type:   "OFF",
 	}
-}
+})
 
-func MuteEvent(v *Voice) *Event {
+// params are ignored, just to fullfill the EventGenerator interface
+var MuteEvent = EventGenerator(func(v *Voice, params ...Parameter) *Event {
 	return &Event{
 		Voice:  v,
 		Runner: v.OffEvent,
 		Type:   "MUTE",
 	}
-}
+})
 
-func UnMuteEvent(v *Voice) *Event {
+// params are ignored, just to fullfill the EventGenerator interface
+var UnMuteEvent = EventGenerator(func(v *Voice, params ...Parameter) *Event {
 	return &Event{
 		Voice:  v,
 		Runner: v.donothing,
 		Type:   "UNMUTE",
 	}
-}
+})
 
-func ChangeEvent(v *Voice, params ...Parameter) *Event {
+var ChangeEvent = EventGenerator(func(v *Voice, params ...Parameter) *Event {
 	return &Event{
 		Voice:  v,
-		Params: Params(params...),
+		Params: MixParams(params...),
 		Runner: v.ChangeEvent,
 		Type:   "CHANGE",
 	}
+})
+
+type EventGenerator func(v *Voice, params ...Parameter) *Event
+
+/*
+func ExecEvent(v *Voice, fn func(e *Event), params ...Parameter) *Event {
+	return &Event{
+		Voice:  v,
+		Params: Params(params...),
+		Runner: fn,
+		Type:   "EXEC",
+	}
 }
+*/

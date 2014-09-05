@@ -18,7 +18,7 @@ func newSCSampleFreq(g generator, path string, freq float64, numVoices int) []*V
 }
 
 func newSCSample(g generator, path string, numVoices int) []*Voice {
-	sample := NewSample(path)
+	sample := newSample(path)
 	sample.sCBuffer = g.newSampleBuffer()
 	instr := &sCInstrument{
 		name: fmt.Sprintf("sample%d", sample.Channels),
@@ -54,7 +54,7 @@ func (s *sCSampleInstrument) Sample(params map[string]float64) *Sample {
 	samplePath := s.SampleLibrary.SamplePath(s.instrument, params)
 	sample, has := s.Samples[samplePath]
 	if !has {
-		sample = NewSample(samplePath)
+		sample = newSample(samplePath)
 		s.Samples[samplePath] = sample
 		sample.sCBuffer = s.g.newSampleBuffer()
 	}
@@ -82,7 +82,7 @@ type Sample struct {
 		"numFrames": 64637,"sampleRate": 44100,"channels": 2,"sampleFormat": "int16","duration": 1.4656916099773,"headerFormat": "WAV"}
 */
 
-func NewSample(path string) *Sample {
+func newSample(path string) *Sample {
 	s := &Sample{Path: path}
 	s.loadMeta()
 	return s

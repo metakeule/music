@@ -5,8 +5,20 @@ package music
 import (
 	"bytes"
 	"fmt"
+	"math/rand"
 	"strings"
+	"time"
 )
+
+type ParamsModifier interface {
+	Modify(Parameter) Parameter
+}
+
+type ParamsModifierFunc func(Parameter) Parameter
+
+func (p ParamsModifierFunc) Modify(param Parameter) Parameter {
+	return p(param)
+}
 
 type Voice struct {
 	generator
@@ -16,6 +28,7 @@ type Voice struct {
 	Bus                 int
 	mute                bool
 	lastSampleFrequency float64 // frequency of the last played sample
+	ParamsModifier      ParamsModifier
 }
 
 type playDur struct {
@@ -25,13 +38,13 @@ type playDur struct {
 	Params Parameter
 }
 
-func (p *playDur) Pattern(t *Track) {
+func (p *playDur) Pattern(t Tracker) {
 	t.At(p.pos, OnEvent(p.Voice, p.Params))
 	t.At(p.pos+p.dur, OffEvent(p.Voice))
 }
 
 func (v *Voice) PlayDur(pos, dur string, params ...Parameter) Pattern {
-	return &playDur{M(pos), M(dur), v, Params(params...)}
+	return &playDur{M(pos), M(dur), v, MixParams(params...)}
 }
 
 type play struct {
@@ -40,29 +53,48 @@ type play struct {
 	Params Parameter
 }
 
-func (p *play) Pattern(t *Track) {
+func (v *Voice) Sequencer(s Sequencer) Pattern {
+	return &sequencer{
+		seq: s,
+		v:   v,
+	}
+}
+
+func (p *play) Pattern(t Tracker) {
 	t.At(p.pos, OnEvent(p.Voice, p.Params))
 }
 
+func (v *Voice) Phrase(pos string) *phrase {
+	return newPhrase(v, pos)
+}
+
+func (v *Voice) Rhythm(start string, positions ...string) *rhythm {
+	if len(positions) < 1 {
+		panic("number of positions must be 1 at least")
+	}
+	return newRhythm(v, start, positions...)
+}
+
 func (v *Voice) Play(pos string, params ...Parameter) Pattern {
-	return &play{M(pos), v, Params(params...)}
+	return &play{M(pos), v, MixParams(params...)}
 }
 
 type exec_ struct {
 	pos   Measure
-	fn    func(e *Event)
+	fn    func(t Tracker) (EventGenerator, Parameter)
 	voice *Voice
-	type_ string
 }
 
-func (e *exec_) Pattern(t *Track) {
-	ev := newEvent(e.voice, e.type_)
-	ev.Runner = e.fn
-	t.At(e.pos, ev)
+func (e *exec_) Pattern(t Tracker) {
+	evGen, param := e.fn(t)
+
+	//ev := newEvent(e.voice, "CUSTOM")
+	// ev.Runner = e.fn
+	t.At(e.pos, evGen(e.voice, param))
 }
 
-func (v *Voice) Exec(pos string, type_ string, fn func(t *Event)) Pattern {
-	return &exec_{M(pos), fn, v, type_}
+func (v *Voice) Exec(pos string, fn func(t Tracker) (EventGenerator, Parameter)) Pattern {
+	return &exec_{M(pos), fn, v}
 }
 
 type stop struct {
@@ -70,7 +102,7 @@ type stop struct {
 	*Voice
 }
 
-func (p *stop) Pattern(t *Track) {
+func (p *stop) Pattern(t Tracker) {
 	t.At(p.pos, OffEvent(p.Voice))
 }
 
@@ -84,7 +116,7 @@ type mod struct {
 	Params Parameter
 }
 
-func (p *mod) Pattern(t *Track) {
+func (p *mod) Pattern(t Tracker) {
 	t.At(p.pos, ChangeEvent(p.Voice, p.Params))
 }
 
@@ -94,7 +126,7 @@ type mute struct {
 	mute bool
 }
 
-func (m *mute) Pattern(t *Track) {
+func (m *mute) Pattern(t Tracker) {
 	if m.mute {
 		t.At(m.pos, MuteEvent(m.v))
 		return
@@ -111,15 +143,15 @@ func (v *Voice) UnMute(pos string) Pattern {
 }
 
 func (v *Voice) Modify(pos string, params ...Parameter) Pattern {
-	return &mod{M(pos), v, Params(params...)}
+	return &mod{M(pos), v, MixParams(params...)}
 }
 
 func (v *Voice) Metronome(unit Measure, parameter ...Parameter) Pattern {
-	return &metronome{voice: v, unit: unit, eventProps: Params(parameter...)}
+	return &metronome{voice: v, unit: unit, eventProps: MixParams(parameter...)}
 }
 
 func (v *Voice) Bar(parameter ...Parameter) Pattern {
-	return &bar{voice: v, eventProps: Params(parameter...)}
+	return &bar{voice: v, eventProps: MixParams(parameter...)}
 }
 
 type metronome struct {
@@ -129,7 +161,7 @@ type metronome struct {
 	eventProps Parameter
 }
 
-func (m *metronome) Pattern(t *Track) {
+func (m *metronome) Pattern(t Tracker) {
 	n := int(t.CurrentBar() / m.unit)
 	half := m.unit / 2
 	for i := 0; i < n; i++ {
@@ -144,7 +176,7 @@ type bar struct {
 	eventProps Parameter
 }
 
-func (m *bar) Pattern(t *Track) {
+func (m *bar) Pattern(t Tracker) {
 	t.At(M("0"), OnEvent(m.voice, m.eventProps))
 	t.At(M("1/8"), OffEvent(m.voice))
 	m.counter++
@@ -192,6 +224,10 @@ func (v *Voice) getCode(ev *Event) string {
 	//fmt.Println(ev.Type)
 	res := ""
 	switch ev.Type {
+	case "CUSTOM":
+		// fmt.Println("running custom event")
+		//ev.Runner(ev)
+		return ev.sccode.String()
 	case "MUTE":
 		// println("muted")
 		// fmt.Printf("muting %s\n", v.ptr())
@@ -202,16 +238,21 @@ func (v *Voice) getCode(ev *Event) string {
 	case "ON":
 		var bf bytes.Buffer
 		oldNode := v.scnode
+		_, isSample := v.instrument.(*sCSample)
+		_, isSampleInstrument := v.instrument.(*sCSampleInstrument)
+
 		if oldNode != 0 && oldNode > 2000 {
+			if isSample || isSampleInstrument {
+				// is freed automatically
+				fmt.Fprintf(&bf, `, [\n_set, %d, \gate, -1]`, oldNode)
+			} else {
+				fmt.Fprintf(&bf, `, [\n_free, %d]`, oldNode)
+			}
 			// if oldNode != 0 {
-			fmt.Fprintf(&bf, `, [\n_free, %d]`, oldNode)
+			// fmt.Fprintf(&bf, `, [\n_free, %d]`, oldNode)
 		}
 
-		if _, ok := v.instrument.(*sCSample); ok {
-			v.lastSampleFrequency = ev.sampleInstrumentFrequency
-		}
-
-		if _, ok := v.instrument.(*sCSampleInstrument); ok {
+		if isSample || isSampleInstrument {
 			v.lastSampleFrequency = ev.sampleInstrumentFrequency
 		}
 
@@ -257,6 +298,7 @@ func (v *Voice) getCode(ev *Event) string {
 		if _, ok := v.instrument.(*sCSampleInstrument); ok {
 			isSample = true
 		}
+		_ = isSample
 
 		if isSample {
 			if v.lastSampleFrequency != 0 && ev.changedParamsPrepared["freq"] != 0 && v.lastSampleFrequency != ev.changedParamsPrepared["freq"] {
@@ -303,6 +345,10 @@ func (v *Voice) OnEvent(ev *Event) {
 	}
 
 	params := ev.Params.Params()
+
+	if v.ParamsModifier != nil {
+		params = v.ParamsModifier.Modify(ParamsMap(params)).Params()
+	}
 
 	groupParam, hasGroupParam := params["group"]
 
@@ -513,12 +559,12 @@ func Voices(v ...interface{}) voices {
 	return voices(vs)
 }
 
-func (vs voices) Exec(pos string, type_ string, fn func(t *Event)) Pattern {
+func (vs voices) Exec(pos string, fn func(t Tracker) (EventGenerator, Parameter)) Pattern {
 	ps := []Pattern{}
 	for _, v := range vs {
-		ps = append(ps, v.Exec(pos, type_, fn))
+		ps = append(ps, v.Exec(pos, fn))
 	}
-	return Patterns(ps...)
+	return MixPatterns(ps...)
 }
 
 func (vs voices) Modify(pos string, params ...Parameter) Pattern {
@@ -526,7 +572,7 @@ func (vs voices) Modify(pos string, params ...Parameter) Pattern {
 	for _, v := range vs {
 		ps = append(ps, v.Modify(pos, params...))
 	}
-	return Patterns(ps...)
+	return MixPatterns(ps...)
 }
 
 func (vs voices) PlayDur(pos, dur string, params ...Parameter) Pattern {
@@ -534,7 +580,7 @@ func (vs voices) PlayDur(pos, dur string, params ...Parameter) Pattern {
 	for _, v := range vs {
 		ps = append(ps, v.PlayDur(pos, dur, params...))
 	}
-	return Patterns(ps...)
+	return MixPatterns(ps...)
 }
 
 func (vs voices) Stop(pos string) Pattern {
@@ -542,7 +588,7 @@ func (vs voices) Stop(pos string) Pattern {
 	for _, v := range vs {
 		ps = append(ps, v.Stop(pos))
 	}
-	return Patterns(ps...)
+	return MixPatterns(ps...)
 }
 
 func (vs voices) Play(pos string, params ...Parameter) Pattern {
@@ -550,7 +596,7 @@ func (vs voices) Play(pos string, params ...Parameter) Pattern {
 	for _, v := range vs {
 		ps = append(ps, v.Play(pos, params...))
 	}
-	return Patterns(ps...)
+	return MixPatterns(ps...)
 }
 
 func (vs voices) Mute(pos string) Pattern {
@@ -558,7 +604,7 @@ func (vs voices) Mute(pos string) Pattern {
 	for _, v := range vs {
 		ps = append(ps, v.Mute(pos))
 	}
-	return Patterns(ps...)
+	return MixPatterns(ps...)
 }
 
 func (vs voices) UnMute(pos string) Pattern {
@@ -566,7 +612,7 @@ func (vs voices) UnMute(pos string) Pattern {
 	for _, v := range vs {
 		ps = append(ps, v.UnMute(pos))
 	}
-	return Patterns(ps...)
+	return MixPatterns(ps...)
 }
 
 func (vs voices) SetBus(bus int) {
@@ -582,4 +628,85 @@ func (vs voices) SetGroup(group int) {
 	for _, v := range vs {
 		v.Group = group
 	}
+}
+
+func (vs voices) SetParamsModifier(m ParamsModifier) {
+	for _, v := range vs {
+		v.ParamsModifier = m
+	}
+}
+
+/*
+MultiSet(Random(20), Offset(15), Random(1.4), Amp(1.5))
+*/
+// a simple idea to humanize offset by +/10 and amp by +- 0.1
+type humanize_V1 struct {
+	params       Parameter
+	offsetFactor float64
+	ampFactor    float64
+	freqFactor   float64
+}
+
+func (h *humanize_V1) Params() map[string]float64 {
+	p := h.params.Params()
+	// between 0 and 1
+
+	if h.offsetFactor > 0 {
+		src1 := rand.NewSource(time.Now().UTC().UnixNano())
+		r1 := rand.New(src1).Float64()
+
+		offsetAdd := (r1 - 0.5) * h.offsetFactor
+		if r1 <= 0.5 {
+			offsetAdd = r1 * h.offsetFactor * (-1)
+		}
+		p["offset"] = p["offset"] + offsetAdd
+	}
+
+	if h.ampFactor > 0 {
+		src2 := rand.NewSource(time.Now().UTC().UnixNano() * time.Now().UTC().UnixNano())
+		r2 := rand.New(src2).Float64()
+
+		ampAdd := r2 * h.ampFactor
+
+		p["amp"] = p["amp"] + ampAdd
+	}
+
+	/*
+		TODO also for freq
+		offsetAdd := (r1 - 0.5) * h.offsetFactor
+			if r1 < 0.5 {
+				offsetAdd = r1 * h.offsetFactor * (-1)
+			}
+			p["offset"] = p["offset"] + offsetAdd
+	*/
+
+	if h.freqFactor > 0 && p["freq"] != 0 {
+		// was := p["freq"]
+		src3 := rand.NewSource(time.Now().UTC().UnixNano() * time.Now().UTC().UnixNano())
+		r3 := rand.New(src3).Float64()
+
+		freqAdd := (r3 - 0.5) * h.freqFactor
+
+		if r3 <= 0.5 {
+			freqAdd = r3 * h.freqFactor * (-1)
+		}
+
+		if x := p["freq"] + freqAdd; x > 0 {
+			p["freq"] = x
+			// fmt.Printf("freq: %v => %v \n", was, p["freq"])
+		}
+
+	}
+
+	return p
+}
+
+type HumanizeV1 struct {
+	OffsetFactor float64
+	AmpFactor    float64
+	FreqFactor   float64
+}
+
+func (h HumanizeV1) Modify(params Parameter) Parameter {
+	return &humanize_V1{params, h.OffsetFactor, h.AmpFactor, h.FreqFactor}
 }

@@ -1,9 +1,10 @@
 package music
 
+/*
 import "testing"
 
 func TestChain(t *testing.T) {
-	tr := NewTrack(BPM(120), M("1/4")*4)
+	tr := newTrack(BPM(120), M("1/4")*4)
 	// fmt.Println(tr.Tempi[0].Tempo.MilliSecs(M("1/4")))
 
 	tr.At(M("0"), On(v1, note(2)))
@@ -22,6 +23,7 @@ func TestChain(t *testing.T) {
 	}
 
 }
+*/
 
 /*
 func TestAtSeq(t *testing.T) {

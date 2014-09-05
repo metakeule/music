@@ -3,6 +3,7 @@ package music
 import (
 	"math/big"
 	"sort"
+	"strings"
 )
 
 type Measure int
@@ -93,7 +94,8 @@ func (m Measure) String() string {
 }
 
 // measure via string
-func M(s string) Measure {
+//func m_(s string) Measure {
+func m_(s string) float64 {
 	r := new(big.Rat)
 	_, ok := r.SetString(s)
 	if !ok {
@@ -109,8 +111,25 @@ func M(s string) Measure {
 
 	f, _ := x.Float64()
 
-	return Measure(int(f))
+	//return Measure(int(f))
+	return f
 
+}
+
+func _M(s string) float64 {
+	summands := strings.Split(s, "+")
+
+	var sum float64
+
+	for _, s := range summands {
+		sum += m_(strings.TrimSpace(s))
+	}
+
+	return sum
+}
+
+func M(s string) Measure {
+	return Measure(int(_M(s)))
 }
 
 /*

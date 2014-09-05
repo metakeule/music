@@ -21,7 +21,7 @@ func (ps params) Params() map[string]float64 {
 	return params
 }
 
-func Params(parameter ...Parameter) Parameter {
+func MixParams(parameter ...Parameter) Parameter {
 	return params(parameter)
 }
 
@@ -33,6 +33,26 @@ type ParamsMap map[string]float64
 
 func (p ParamsMap) Params() map[string]float64 {
 	return map[string]float64(p)
+}
+
+type seqParams struct {
+	seq        []Parameter
+	initParams Parameter
+	Pos        int
+}
+
+func SeqParams(initParams Parameter, seq ...Parameter) Parameter {
+	return &seqParams{seq: seq, initParams: initParams}
+}
+
+func (p *seqParams) Params() map[string]float64 {
+	param := p.seq[p.Pos]
+	if p.Pos < len(p.seq)-1 {
+		p.Pos++
+	} else {
+		p.Pos = 0
+	}
+	return MixParams(p.initParams, param).Params()
 }
 
 type Valuer interface {

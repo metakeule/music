@@ -169,7 +169,7 @@ func (s *Stage) writeSynthDefs(w io.Writer) {
 }
 
 var sampleSynthDef = `SynthDef("sample%d", { |gate=1,bufnum = 0,amp=1, out=0, pan=0, rate=1| var z;
-	z =  EnvGen.kr(Env.perc,gate) * PlayBuf.ar(%d, bufnum, BufRateScale.kr(bufnum) * rate);
+	z =  EnvGen.kr(Env.perc,gate) * PlayBuf.ar(%d, bufnum, BufRateScale.kr(bufnum) * rate, loop: 0, doneAction: 2);
 	FreeSelfWhenDone.kr(z);
 	Out.ar(out, Pan2.ar(z, pos: pan, level: amp));
 } ).writeDefFile;`
@@ -306,6 +306,9 @@ func (s *Stage) Play(startOffset uint) {
 		evts = append(evts, tr.Events...)
 	}
 
+	sortedEvents := eventsSorted(evts)
+	sort.Sort(sortedEvents)
+
 	dir, err := ioutil.TempDir("/tmp", "go-sc-music-generator")
 	if err != nil {
 		panic(err.Error())
@@ -340,9 +343,12 @@ func (s *Stage) Play(startOffset uint) {
 	finTick := uint(0)
 	startTick := uint(0)
 
-	for _, ev := range evts {
+	for _, ev := range sortedEvents {
 		currTick := int(ev.tick)
+		// custom events are only run after the big sorting in the voice
+		//if ev.Type != "CUSTOM" {
 		ev.Runner(ev)
+		//}
 		if ev.Type == "ON" {
 			currTick = MillisecsToTick(ev.offset) + currTick
 		}
@@ -350,7 +356,7 @@ func (s *Stage) Play(startOffset uint) {
 			currTick = MillisecsToTick(ev.offset) + currTick
 		}
 
-		if ev.Type == "ON" || ev.Type == "CHANGE" || ev.Type == "OFF" || ev.Type == "MUTE" || ev.Type == "UNMUTE" {
+		if ev.Type == "ON" || ev.Type == "CHANGE" || ev.Type == "OFF" || ev.Type == "MUTE" || ev.Type == "UNMUTE" || ev.Type == "fin" || ev.Type == "CUSTOM" {
 			tickMapped[int(currTick)] = append(tickMapped[int(currTick)], ev)
 		}
 

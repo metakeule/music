@@ -5,24 +5,26 @@ import "bytes"
 type Event struct {
 	Voice                     *Voice
 	Params                    Parameter // a special parameter offset may be used to set a per event offset
-	Runner                    func(*Event)
-	Type                      string
+	runner                    func(*Event)
+	type_                     string
 	tick                      uint
 	absPosition               Measure // will be enabled when integrated
 	offset                    float64 // offset added to the final position (includes instrument and sample offsets as well as offset set via parameter)
 	sccode                    bytes.Buffer
 	changedParamsPrepared     map[string]float64
 	sampleInstrumentFrequency float64
+	synthID                   int
+	reference                 *Event
 }
 
-var fin = &Event{Runner: func(*Event) {}, Type: "fin"}
-var start = &Event{Runner: func(*Event) {}, Type: "start"}
+var fin = &Event{runner: func(*Event) {}, type_: "fin"}
+var start = &Event{runner: func(*Event) {}, type_: "start"}
 
 func newEvent(v *Voice, type_ string) *Event {
 	return &Event{
 		Voice:  v,
 		Params: ParamsMap(map[string]float64{}),
-		Type:   type_,
+		type_:  type_,
 	}
 }
 
@@ -37,8 +39,8 @@ func (ev *Event) OnMerged(voice *Voice, ps ...Parameter) *Event {
 	p = append(p, ps...)
 	n.Params = MixParams(p...)
 	n.Voice = voice
-	n.Runner = voice.OnEvent
-	n.Type = "ON"
+	n.runner = voice.OnEvent
+	n.type_ = "ON"
 	return n
 }
 
@@ -53,14 +55,14 @@ func (ev *Event) ChangeMerged(voice *Voice, ps ...Parameter) *Event {
 	p = append(p, ps...)
 	n.Params = MixParams(p...)
 	n.Voice = voice
-	n.Runner = voice.ChangeEvent
-	n.Type = "CHANGE"
+	n.runner = voice.ChangeEvent
+	n.type_ = "CHANGE"
 	return n
 }
 
 func (ev *Event) Clone() *Event {
-	n := &Event{Voice: ev.Voice, Runner: ev.Runner}
-	n.Type = ev.Type
+	n := &Event{Voice: ev.Voice, runner: ev.runner}
+	n.type_ = ev.type_
 	n.absPosition = ev.absPosition
 	n.Params = ev.Params
 	return n
@@ -70,8 +72,8 @@ var OnEvent = EventGenerator(func(v *Voice, params ...Parameter) *Event {
 	return &Event{
 		Voice:  v,
 		Params: MixParams(params...),
-		Runner: v.OnEvent,
-		Type:   "ON",
+		runner: v.OnEvent,
+		type_:  "ON",
 	}
 })
 
@@ -79,8 +81,8 @@ var OnEvent = EventGenerator(func(v *Voice, params ...Parameter) *Event {
 var OffEvent = EventGenerator(func(v *Voice, params ...Parameter) *Event {
 	return &Event{
 		Voice:  v,
-		Runner: v.OffEvent,
-		Type:   "OFF",
+		runner: v.OffEvent,
+		type_:  "OFF",
 	}
 })
 
@@ -88,8 +90,8 @@ var OffEvent = EventGenerator(func(v *Voice, params ...Parameter) *Event {
 var MuteEvent = EventGenerator(func(v *Voice, params ...Parameter) *Event {
 	return &Event{
 		Voice:  v,
-		Runner: v.OffEvent,
-		Type:   "MUTE",
+		runner: v.OffEvent,
+		type_:  "MUTE",
 	}
 })
 
@@ -97,8 +99,8 @@ var MuteEvent = EventGenerator(func(v *Voice, params ...Parameter) *Event {
 var UnMuteEvent = EventGenerator(func(v *Voice, params ...Parameter) *Event {
 	return &Event{
 		Voice:  v,
-		Runner: v.donothing,
-		Type:   "UNMUTE",
+		runner: v.donothing,
+		type_:  "UNMUTE",
 	}
 })
 
@@ -106,10 +108,25 @@ var ChangeEvent = EventGenerator(func(v *Voice, params ...Parameter) *Event {
 	return &Event{
 		Voice:  v,
 		Params: MixParams(params...),
-		Runner: v.ChangeEvent,
-		Type:   "CHANGE",
+		runner: v.ChangeEvent,
+		type_:  "CHANGE",
 	}
 })
+
+func newFreeEvent(v *Voice, reference *Event) *Event {
+	return &Event{
+		Voice:     v,
+		type_:     "FREE",
+		reference: reference,
+	}
+}
+
+func CustomEvent(fn func(*Event)) *Event {
+	return &Event{
+		runner: fn,
+		type_:  "CUSTOM",
+	}
+}
 
 type EventGenerator func(v *Voice, params ...Parameter) *Event
 
@@ -118,7 +135,7 @@ func ExecEvent(v *Voice, fn func(e *Event), params ...Parameter) *Event {
 	return &Event{
 		Voice:  v,
 		Params: Params(params...),
-		Runner: fn,
+		runner: fn,
 		Type:   "EXEC",
 	}
 }

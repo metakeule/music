@@ -14,10 +14,10 @@ type instrument interface {
 }
 
 type sCInstrument struct {
-	name   string  // name of the instrument must not have characters other than [a-zA-Z0-9_]
-	Path   string  // path of the instrument
-	Offset float64 // offset applied to every instance of the instrument
-	used   bool
+	name string // name of the instrument must not have characters other than [a-zA-Z0-9_]
+	Path string // path of the instrument
+	// Offset float64 // offset applied to every instance of the instrument
+	used bool
 }
 
 // the outer invoker may use the first voices instrument to query loadcode etc

@@ -146,8 +146,9 @@ func SetTempo(at string, t Tempo) *setTempo {
 	return &setTempo{t, M(at)}
 }
 
+// Tracker must be a *Track
 func (s *setTempo) Pattern(t Tracker) {
-	t.SetTempo(s.Pos, s.Tempo)
+	t.(*Track).SetTempo(s.Pos, s.Tempo)
 }
 
 type times struct {
@@ -194,16 +195,17 @@ func (ts *tempoSpan) SetTempo(pos string) Pattern {
 	return &tempoSpanTrafo{ts, pos}
 }
 
+// Tracker must be a *Track
 func (ts *tempoSpanTrafo) Pattern(t Tracker) {
 	var newtempo float64
 	if ts.current == -1 {
-		newtempo = ts.modifier(t.TempoAt(M(ts.pos)).BPM(), ts.step)
+		newtempo = ts.modifier(t.(*Track).TempoAt(M(ts.pos)).BPM(), ts.step)
 	} else {
 		ts.current = ts.modifier(ts.current, ts.step)
 		newtempo = ts.current
 	}
 	//rounded := RoundFloat(newtempo, 4)
-	t.SetTempo(M(ts.pos), BPM(newtempo))
+	t.(*Track).SetTempo(M(ts.pos), BPM(newtempo))
 }
 
 func StepAdd(current, step float64) float64 {
@@ -254,7 +256,7 @@ func (s *sequence) Pattern(t Tracker) {
 	}
 }
 
-func SeqPatterns(seq ...Pattern) Pattern {
+func SeqPatterns(seq ...Pattern) *sequence {
 	return &sequence{seq: seq}
 }
 
@@ -262,7 +264,9 @@ type compose []Pattern
 
 func (c compose) Pattern(t Tracker) {
 	for _, trafo := range c {
-		trafo.Pattern(t)
+		if trafo != nil {
+			trafo.Pattern(t)
+		}
 	}
 }
 

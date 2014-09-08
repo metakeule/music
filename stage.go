@@ -347,25 +347,38 @@ func (s *Stage) Play(startOffset uint) {
 		currTick := int(ev.tick)
 		// custom events are only run after the big sorting in the voice
 		//if ev.Type != "CUSTOM" {
-		ev.Runner(ev)
+
+		// do it before ev.runner(ev) since that sets ev.Voice.lastEvent
+		if ev.type_ == "ON" && ev.Voice.lastEvent != nil {
+			stopper := OffEvent(ev.Voice)
+			stopper.reference = ev.Voice.lastEvent
+			stopper.offset = ev.Voice.offset
+			tickMapped[int(currTick)] = append(tickMapped[int(currTick)], stopper)
+			freeer := newFreeEvent(ev.Voice, ev.Voice.lastEvent)
+			freeer.offset = ev.Voice.offset
+			freeTick := MillisecsToTick(20) + int(currTick)
+			tickMapped[freeTick] = append(tickMapped[freeTick], freeer)
+		}
+
+		ev.runner(ev)
 		//}
-		if ev.Type == "ON" {
+		if ev.type_ == "ON" {
 			currTick = MillisecsToTick(ev.offset) + currTick
 		}
-		if ev.Type == "CHANGE" {
+		if ev.type_ == "CHANGE" {
 			currTick = MillisecsToTick(ev.offset) + currTick
 		}
 
-		if ev.Type == "ON" || ev.Type == "CHANGE" || ev.Type == "OFF" || ev.Type == "MUTE" || ev.Type == "UNMUTE" || ev.Type == "fin" || ev.Type == "CUSTOM" {
+		if ev.type_ == "ON" || ev.type_ == "CHANGE" || ev.type_ == "OFF" || ev.type_ == "MUTE" || ev.type_ == "UNMUTE" || ev.type_ == "fin" || ev.type_ == "CUSTOM" {
 			tickMapped[int(currTick)] = append(tickMapped[int(currTick)], ev)
 		}
 
-		if ev.Type == "fin" {
+		if ev.type_ == "fin" {
 			if finTick == 0 || finTick > ev.tick {
 				finTick = ev.tick
 			}
 		}
-		if ev.Type == "start" {
+		if ev.type_ == "start" {
 			if startTick == 0 || startTick < ev.tick {
 				startTick = ev.tick
 			}

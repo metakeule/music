@@ -9,11 +9,15 @@ import (
 
 // Tracker limits the available functions for a Pattern
 type Tracker interface {
-	SetTempo(pos Measure, tempo Tempo)
-	TempoAt(abspos Measure) Tempo
+	/*
+		SetTempo(pos Measure, tempo Tempo)
+		TempoAt(abspos Measure) Tempo
+	*/
 	At(pos Measure, events ...*Event)
-	MixPatterns(tf ...Pattern)
-	CurrentBar() Measure
+	/*
+		MixPatterns(tf ...Pattern)
+		CurrentBar() Measure
+	*/
 }
 
 type Track struct {
@@ -22,57 +26,57 @@ type Track struct {
 	tempi  []tempoAt
 	Events []*Event
 	// loops  []Pattern
-	loops    map[string]Loop
-	loopsNum map[string]uint
+	loops map[string]*loopInTrack
+	// loopsNum map[string]uint
 	compiled bool
 	started  bool
 }
 
 func newTrack(tempo Tempo, m Measure) *Track {
 	return &Track{
-		absPos:   Measure(0),
-		Bars:     []Measure{m},
-		loops:    map[string]Loop{},
-		loopsNum: map[string]uint{},
-		tempi:    []tempoAt{tempoAt{AbsPos: Measure(0), Tempo: tempo}},
+		absPos: Measure(0),
+		Bars:   []Measure{m},
+		loops:  map[string]*loopInTrack{},
+		//		loopsNum: map[string]uint{},
+		tempi: []tempoAt{tempoAt{AbsPos: Measure(0), Tempo: tempo}},
 	}
 }
 
-func (t *Track) SetLoop(name string, lengthInBars uint, patterns ...Pattern) *Track {
-	if lengthInBars < 1 {
-		panic("lengthInBars must be larger than 0")
+// SetLoopAt sets a Loop so that startPos inside the loop matches position "0" inside the track bar
+func (t *Track) SetLoopAt(name string, startPos string, l Looper) *Track {
+	t.loops[name] = &loopInTrack{
+		start: M(startPos),
+		loop:  l,
 	}
-	t.loops[name] = Loop{Pattern: MixPatterns(patterns...), NumBars: lengthInBars}
-	t.loopsNum[name] = 0
 	return t
+}
+
+// SetLoop sets a Loop so that position "0" inside the loop matches position "0" inside the track bar
+func (t *Track) SetLoop(name string, l Looper) *Track {
+	return t.SetLoopAt(name, "0", l)
 }
 
 // RemoveLoops removes all loops if no names is passed
 func (t *Track) RemoveLoops(names ...string) *Track {
 	if len(names) == 0 {
-		t.loops = map[string]Loop{}
-		t.loopsNum = map[string]uint{}
+		t.loops = map[string]*loopInTrack{}
 		return t
 	}
 
 	for _, name := range names {
 		delete(t.loops, name)
-		delete(t.loopsNum, name)
 	}
 	return t
-}
-
-func (t *Track) GetLoop(name string) Loop {
-	return t.loops[name]
 }
 
 func (t *Track) Start(patterns ...Pattern) *Track {
 	if t.started {
 		panic("already started")
 	}
-	for name, l := range t.loops {
-		t.MixPatterns(l.Pattern)
-		t.loopsNum[name]++
+	for _, l := range t.loops {
+		l.setEventsForBar(t)
+		// t.MixPatterns(l.Pattern)
+		// t.loopsNum[name]++
 	}
 	t.MixPatterns(patterns...)
 	t.started = true
@@ -85,15 +89,18 @@ func (t *Track) nextBar() {
 	}
 	t.Bars = append(t.Bars, t.Bars[len(t.Bars)-1])
 	t.absPos = t.absPos + t.Bars[len(t.Bars)-1]
-	for name, loop := range t.loops {
-		if t.loopsNum[name] == 0 || t.loopsNum[name] >= loop.NumBars {
-			// fmt.Printf("play loop %s\n", name)
-			t.loopsNum[name] = 1
-			t.MixPatterns(loop.Pattern)
-		} else {
-			t.loopsNum[name]++
-			// fmt.Printf("count loop %s: %d\n", name, t.loopsNum[name])
-		}
+	for _, loop := range t.loops {
+		loop.setEventsForBar(t)
+		/*
+			if t.loopsNum[name] == 0 || t.loopsNum[name] >= loop.NumBars {
+				// fmt.Printf("play loop %s\n", name)
+				t.loopsNum[name] = 1
+				t.MixPatterns(loop.Pattern)
+			} else {
+				t.loopsNum[name]++
+				// fmt.Printf("count loop %s: %d\n", name, t.loopsNum[name])
+			}
+		*/
 	}
 }
 
@@ -103,15 +110,18 @@ func (t *Track) changeBar(newBar Measure) {
 	}
 	t.Bars = append(t.Bars, newBar)
 	t.absPos = t.absPos + t.Bars[len(t.Bars)-1]
-	for name, loop := range t.loops {
-		if t.loopsNum[name] == 0 || t.loopsNum[name] >= loop.NumBars {
-			// fmt.Printf("play loop %s\n", name)
-			t.loopsNum[name] = 1
-			t.MixPatterns(loop.Pattern)
-		} else {
-			t.loopsNum[name]++
-			// fmt.Printf("count loop %s: %d\n", name, t.loopsNum[name])
-		}
+	for _, loop := range t.loops {
+		loop.setEventsForBar(t)
+		/*
+			if t.loopsNum[name] == 0 || t.loopsNum[name] >= loop.NumBars {
+				// fmt.Printf("play loop %s\n", name)
+				t.loopsNum[name] = 1
+				t.MixPatterns(loop.Pattern)
+			} else {
+				t.loopsNum[name]++
+				// fmt.Printf("count loop %s: %d\n", name, t.loopsNum[name])
+			}
+		*/
 	}
 }
 
@@ -178,7 +188,7 @@ func (t *Track) print(tempo Tempo, unit string, wr io.Writer) {
 
 			}
 
-			switch ev.Type {
+			switch ev.type_ {
 			case "ON":
 				//fmt.Print("<")
 				fmt.Fprintf(wr, "%v-", ev.Params.Params()["note"])

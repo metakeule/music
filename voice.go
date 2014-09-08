@@ -22,13 +22,15 @@ func (p ParamsModifierFunc) Modify(param Parameter) Parameter {
 
 type Voice struct {
 	generator
-	instrument          instrument
-	scnode              int // the node id of the voice
-	Group               int
-	Bus                 int
-	mute                bool
-	lastSampleFrequency float64 // frequency of the last played sample
-	ParamsModifier      ParamsModifier
+	instrument instrument
+	scnode     int // the node id of the voice
+	Group      int
+	Bus        int
+	mute       bool
+	offset     float64
+	// lastSampleFrequency float64 // frequency of the last played sample
+	ParamsModifier ParamsModifier
+	lastEvent      *Event
 }
 
 type playDur struct {
@@ -58,6 +60,10 @@ func (v *Voice) Sequencer(s Sequencer) Pattern {
 		seq: s,
 		v:   v,
 	}
+}
+
+func (v *Voice) SetOffset(o float64) {
+	v.offset = o
 }
 
 func (p *play) Pattern(t Tracker) {
@@ -161,8 +167,9 @@ type metronome struct {
 	eventProps Parameter
 }
 
+// Tracker must be a *Track
 func (m *metronome) Pattern(t Tracker) {
-	n := int(t.CurrentBar() / m.unit)
+	n := int(t.(*Track).CurrentBar() / m.unit)
 	half := m.unit / 2
 	for i := 0; i < n; i++ {
 		t.At(m.unit*Measure(i), OnEvent(m.voice, m.eventProps))
@@ -223,7 +230,9 @@ func (v *Voice) ptr() string {
 func (v *Voice) getCode(ev *Event) string {
 	//fmt.Println(ev.Type)
 	res := ""
-	switch ev.Type {
+	switch ev.type_ {
+	case "FREE":
+		return fmt.Sprintf(`, [\n_free, %d]`, ev.reference.synthID)
 	case "CUSTOM":
 		// fmt.Println("running custom event")
 		//ev.Runner(ev)
@@ -237,44 +246,57 @@ func (v *Voice) getCode(ev *Event) string {
 		v.mute = false
 	case "ON":
 		var bf bytes.Buffer
-		oldNode := v.scnode
-		_, isSample := v.instrument.(*sCSample)
-		_, isSampleInstrument := v.instrument.(*sCSampleInstrument)
+		// oldNode := v.scnode
+		// _, isSample := v.instrument.(*sCSample)
+		// _, isSampleInstrument := v.instrument.(*sCSampleInstrument)
 
-		if oldNode != 0 && oldNode > 2000 {
-			if isSample || isSampleInstrument {
-				// is freed automatically
-				fmt.Fprintf(&bf, `, [\n_set, %d, \gate, -1]`, oldNode)
-			} else {
-				fmt.Fprintf(&bf, `, [\n_free, %d]`, oldNode)
+		/*
+			if oldNode != 0 && oldNode > 2000 {
+				if isSample || isSampleInstrument {
+					// is freed automatically
+					fmt.Fprintf(&bf, `, [\n_set, %d, \gate, -1]`, oldNode)
+				} else {
+					fmt.Fprintf(&bf, `, [\n_free, %d]`, oldNode)
+				}
+				// if oldNode != 0 {
+				// fmt.Fprintf(&bf, `, [\n_free, %d]`, oldNode)
 			}
-			// if oldNode != 0 {
-			// fmt.Fprintf(&bf, `, [\n_free, %d]`, oldNode)
-		}
-
-		if isSample || isSampleInstrument {
-			v.lastSampleFrequency = ev.sampleInstrumentFrequency
-		}
+		*/
+		/*
+			if isSample || isSampleInstrument {
+				v.lastSampleFrequency = ev.sampleInstrumentFrequency
+			}
+		*/
 
 		if v.mute {
 			// println("muted (On)")
 			v.scnode = 0
+			ev.synthID = 0
 			return bf.String()
 		}
 		// fmt.Printf("ON %s\n", v.ptr())
 
 		v.scnode = v.newNodeId()
+		ev.synthID = v.scnode
 		//s := strings.Replace(ev.sccode.String(), "##OLD_NODE##", fmt.Sprintf("%d", v.scnode), -1)
 		bf.WriteString(strings.Replace(ev.sccode.String(), "##NODE##", fmt.Sprintf("%d", v.scnode), -1))
 		//bf.WriteString(ev.sccode.String())
 		res = bf.String()
 		//fmt.Sprintf(ev.sccode.String(), ...)
 	case "OFF":
-		v.lastSampleFrequency = 0
-		if v.scnode == 0 {
+		// v.lastSampleFrequency = 0
+
+		if ev.reference.synthID == 0 {
 			return ""
 		}
-		res = strings.Replace(ev.sccode.String(), "##NODE##", fmt.Sprintf("%d", v.scnode), -1)
+
+		/*
+			if v.scnode == 0 {
+				return ""
+			}
+			res = strings.Replace(ev.sccode.String(), "##NODE##", fmt.Sprintf("%d", v.scnode), -1)
+		*/
+		res = strings.Replace(ev.sccode.String(), "##NODE##", fmt.Sprintf("%d", ev.reference.synthID), -1)
 		//res = ev.sccode.String()
 	case "CHANGE":
 		if _, isBus := v.instrument.(*bus); isBus {
@@ -285,7 +307,13 @@ func (v *Voice) getCode(ev *Event) string {
 			return ev.sccode.String()
 		}
 
-		if v.scnode == 0 || v.mute {
+		/*
+			if v.scnode == 0 || v.mute {
+				return ""
+			}
+		*/
+
+		if ev.reference.synthID == 0 || v.mute {
 			return ""
 		}
 
@@ -301,19 +329,21 @@ func (v *Voice) getCode(ev *Event) string {
 		_ = isSample
 
 		if isSample {
-			if v.lastSampleFrequency != 0 && ev.changedParamsPrepared["freq"] != 0 && v.lastSampleFrequency != ev.changedParamsPrepared["freq"] {
+			if ev.reference.sampleInstrumentFrequency != 0 && ev.changedParamsPrepared["freq"] != 0 && ev.reference.sampleInstrumentFrequency != ev.changedParamsPrepared["freq"] {
 				if _, isSet := ev.changedParamsPrepared["rate"]; !isSet {
-					ev.changedParamsPrepared["rate"] = ev.changedParamsPrepared["freq"] / v.lastSampleFrequency
+					ev.changedParamsPrepared["rate"] = ev.changedParamsPrepared["freq"] / ev.reference.sampleInstrumentFrequency
 				}
 			}
 		}
 
 		var res bytes.Buffer
 
-		res.WriteString(strings.Replace(ev.sccode.String(), "##NODE##", fmt.Sprintf("%d", v.scnode), -1))
+		//res.WriteString(strings.Replace(ev.sccode.String(), "##NODE##", fmt.Sprintf("%d", v.scnode), -1))
+		res.WriteString(strings.Replace(ev.sccode.String(), "##NODE##", fmt.Sprintf("%d", ev.reference.synthID), -1))
 
 		//fmt.Fprintf(&ev.sccode, `, [\n_set, %d%s]`, v.scnode, v.paramsStr(params))
-		fmt.Fprintf(&res, `, [\n_set, %d%s]`, v.scnode, v.paramsStr(ev.changedParamsPrepared))
+		//fmt.Fprintf(&res, `, [\n_set, %d%s]`, v.scnode, v.paramsStr(ev.changedParamsPrepared))
+		fmt.Fprintf(&res, `, [\n_set, %d%s]`, ev.reference.synthID, v.paramsStr(ev.changedParamsPrepared))
 
 		return res.String()
 
@@ -343,6 +373,8 @@ func (v *Voice) OnEvent(ev *Event) {
 	if cl, ok := v.instrument.(codeLoader); ok {
 		cl.Use()
 	}
+
+	v.lastEvent = ev
 
 	params := ev.Params.Params()
 
@@ -384,7 +416,8 @@ func (v *Voice) OnEvent(ev *Event) {
 
 	switch i := v.instrument.(type) {
 	case *sCInstrument:
-		ev.offset = i.Offset + offsetParam
+		// ev.offset = i.Offset + offsetParam
+		ev.offset = v.offset + offsetParam
 	case *sCSample:
 		if i.Sample.Frequency != 0 && params["freq"] != 0 && i.Sample.Frequency != params["freq"] {
 			if _, isSet := params["rate"]; !isSet {
@@ -402,7 +435,7 @@ func (v *Voice) OnEvent(ev *Event) {
 			bufnum,
 			v.paramsStr(params),
 		)
-		ev.offset = ratedOffset(i.Sample.Offset, params) + offsetParam
+		ev.offset = v.offset + ratedOffset(i.Sample.Offset, params) + offsetParam
 		return
 
 	case *sCSampleInstrument:
@@ -425,7 +458,7 @@ func (v *Voice) OnEvent(ev *Event) {
 			v.paramsStr(params),
 		)
 
-		ev.offset = ratedOffset(sample.Offset, params) + offsetParam
+		ev.offset = v.offset + ratedOffset(sample.Offset, params) + offsetParam
 		return
 	}
 
@@ -452,7 +485,9 @@ func (v *Voice) ChangeEvent(ev *Event) {
 	}
 
 	// only respect offset per parameter in change events
-	ev.offset = offsetParam
+	ev.offset = v.offset + offsetParam
+
+	ev.reference = v.lastEvent
 
 	if _, isBus := v.instrument.(*bus); isBus {
 		for name, val := range params {
@@ -528,6 +563,9 @@ func (v *Voice) OffEvent(ev *Event) {
 	if _, isGroup := v.instrument.(group); isGroup {
 		panic("Off not supported for groups")
 	}
+
+	ev.reference = v.lastEvent
+	ev.offset = v.offset
 
 	// v.lastInstrumentSample = nil
 	//fmt.Fprintf(&ev.sccode, `, [\n_set, %d, \gate, -1]`, v.scnode)
@@ -607,6 +645,12 @@ func (vs voices) Mute(pos string) Pattern {
 	return MixPatterns(ps...)
 }
 
+func (vs voices) SetOffset(o float64) {
+	for _, v := range vs {
+		v.SetOffset(o)
+	}
+}
+
 func (vs voices) UnMute(pos string) Pattern {
 	ps := []Pattern{}
 	for _, v := range vs {
@@ -645,6 +689,7 @@ type humanize_V1 struct {
 	offsetFactor float64
 	ampFactor    float64
 	freqFactor   float64
+	rateFactor   float64
 }
 
 func (h *humanize_V1) Params() map[string]float64 {
@@ -655,10 +700,7 @@ func (h *humanize_V1) Params() map[string]float64 {
 		src1 := rand.NewSource(time.Now().UTC().UnixNano())
 		r1 := rand.New(src1).Float64()
 
-		offsetAdd := (r1 - 0.5) * h.offsetFactor
-		if r1 <= 0.5 {
-			offsetAdd = r1 * h.offsetFactor * (-1)
-		}
+		offsetAdd := r1 * h.offsetFactor * (-1)
 		p["offset"] = p["offset"] + offsetAdd
 	}
 
@@ -668,7 +710,11 @@ func (h *humanize_V1) Params() map[string]float64 {
 
 		ampAdd := r2 * h.ampFactor
 
-		p["amp"] = p["amp"] + ampAdd
+		amp, hasAmp := p["amp"]
+		if !hasAmp {
+			amp = 1.0
+		}
+		p["amp"] = amp + ampAdd
 	}
 
 	/*
@@ -698,6 +744,22 @@ func (h *humanize_V1) Params() map[string]float64 {
 
 	}
 
+	if h.rateFactor > 0 {
+		src4 := rand.NewSource(time.Now().UTC().UnixNano() * time.Now().UTC().UnixNano())
+		r4 := rand.New(src4).Float64()
+
+		rateAdd := r4 * h.rateFactor
+
+		rate, hasRate := p["rate"]
+		if !hasRate {
+			rate = 1.0
+		}
+		// fmt.Printf("rate was : %v\n", rate)
+
+		// fmt.Printf("rate: %v\n", rate+rateAdd)
+		p["rate"] = rate + rateAdd
+	}
+
 	return p
 }
 
@@ -705,8 +767,9 @@ type HumanizeV1 struct {
 	OffsetFactor float64
 	AmpFactor    float64
 	FreqFactor   float64
+	RateFactor   float64
 }
 
 func (h HumanizeV1) Modify(params Parameter) Parameter {
-	return &humanize_V1{params, h.OffsetFactor, h.AmpFactor, h.FreqFactor}
+	return &humanize_V1{params, h.OffsetFactor, h.AmpFactor, h.FreqFactor, h.RateFactor}
 }

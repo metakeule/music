@@ -176,6 +176,9 @@ func (p param) Params() map[string]float64 {
 }
 
 func Param(name string, value float64) Parameter {
+	if name == "offset" && value > 0 {
+		panic("positive offsets are not allowed")
+	}
 	return param{name, value}
 }
 
@@ -234,8 +237,8 @@ func (f Rate) Params() map[string]float64 {
 	return map[string]float64{"rate": float64(f)}
 }
 
-type Offset float64
+type NegOffset uint
 
-func (f Offset) Params() map[string]float64 {
-	return map[string]float64{"offset": float64(f)}
+func (i NegOffset) Params() map[string]float64 {
+	return map[string]float64{"offset": float64(i) * (-1)}
 }

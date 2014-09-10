@@ -24,8 +24,8 @@ Some `Xer` to consider are:
 
 - Pattern
 - Parameter
+- Looper
 - Voice (might make sense to redefine Voice as an interface, or `Voicer`)
-- Loop (might make sense to redefine Loop as an interface, may be Track can be a loop too, but maybe loop is just a pattern)
 
 
 

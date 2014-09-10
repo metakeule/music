@@ -1,19 +1,39 @@
 package music
 
 import (
+	"fmt"
 	"math/rand"
 	"time"
 )
 
+/*
 type Pattern interface {
 	Pattern(Tracker)
 }
+*/
 
-type PatternFunc func(Tracker)
+type Pattern interface {
+	Events(barNum int, barMeasure Measure) map[Measure][]*Event
+	NumBars() int
+}
 
+//type PatternFunc func(Tracker)
+
+type PatternFunc func(barNum int, barMeasure Measure) map[Measure][]*Event
+
+func (tf PatternFunc) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
+	return tf(barNum, barMeasure)
+}
+
+func (tf PatternFunc) NumBars() int {
+	return 1
+}
+
+/*
 func (tf PatternFunc) Pattern(tr Tracker) {
 	tf(tr)
 }
+*/
 
 /*
 type seqModTrafo struct {
@@ -156,11 +176,29 @@ type times struct {
 	trafo Pattern
 }
 
+func (n *times) NumBars() int {
+	return n.times
+}
+
+func (n *times) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
+	res := map[Measure][]*Event{}
+
+	for i := 0; i < n.times; i++ {
+		for pos, events := range n.trafo.Events(barNum, barMeasure) {
+			finalPos := M(fmt.Sprintf("%d", i)) + pos
+			res[finalPos] = append(res[finalPos], events...)
+		}
+	}
+	return res
+}
+
+/*
 func (n *times) Pattern(t Tracker) {
 	for i := 0; i < n.times; i++ {
 		n.trafo.Pattern(t)
 	}
 }
+*/
 
 func Times(num int, trafo Pattern) Pattern {
 	return &times{times: num, trafo: trafo}
@@ -172,11 +210,37 @@ func init() {
 
 type randomPattern []Pattern
 
+func (r randomPattern) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
+	return r[rand.Intn(len(r))].Events(barNum, barMeasure)
+}
+
+func (r randomPattern) NumBars() int {
+	return r[0].NumBars()
+}
+
+/*
 func (r randomPattern) Pattern(t Tracker) {
 	r[rand.Intn(len(r))].Pattern(t)
 }
+*/
 
+// each pattern must have the same NumBars
 func RandomPattern(patterns ...Pattern) Pattern {
+	if len(patterns) < 1 {
+		panic("at least one pattern required")
+	}
+	numBars := patterns[0].NumBars()
+
+	if len(patterns) == 1 {
+		return randomPattern(patterns)
+	}
+
+	for i, p := range patterns[1:] {
+		if p.NumBars() != numBars {
+			panic(fmt.Sprintf("pattern %d does not have the same number of bars as pattern 0", i))
+		}
+	}
+
 	return randomPattern(patterns)
 }
 
@@ -184,6 +248,7 @@ type tempoSpan struct {
 	current  float64
 	step     float64
 	modifier func(current, step float64) float64
+	t        *Track
 }
 
 type tempoSpanTrafo struct {
@@ -195,6 +260,27 @@ func (ts *tempoSpan) SetTempo(pos string) Pattern {
 	return &tempoSpanTrafo{ts, pos}
 }
 
+func (ts *tempoSpanTrafo) NumBars() int {
+	return 1
+}
+
+// TODO: fix it! we need to have a TempoSpan event that is handled specially by the  Tracker - OR - a
+// special Event type that has a method that receives a *Track and may act upon it
+// that must be somehow integrated to the tracker methods
+func (ts *tempoSpanTrafo) Events(barNum int, barMeasure Measure) (res map[Measure][]*Event) {
+	var newtempo float64
+	if ts.current == -1 {
+		newtempo = ts.modifier(ts.t.TempoAt(M(ts.pos)).BPM(), ts.step)
+	} else {
+		ts.current = ts.modifier(ts.current, ts.step)
+		newtempo = ts.current
+	}
+	//rounded := RoundFloat(newtempo, 4)
+	ts.t.SetTempo(M(ts.pos), BPM(newtempo))
+	return nil
+}
+
+/*
 // Tracker must be a *Track
 func (ts *tempoSpanTrafo) Pattern(t Tracker) {
 	var newtempo float64
@@ -207,6 +293,7 @@ func (ts *tempoSpanTrafo) Pattern(t Tracker) {
 	//rounded := RoundFloat(newtempo, 4)
 	t.(*Track).SetTempo(M(ts.pos), BPM(newtempo))
 }
+*/
 
 func StepAdd(current, step float64) float64 {
 	return current + step
@@ -227,47 +314,78 @@ type seqBool struct {
 	trafo Pattern
 }
 
-func (s *seqBool) Pattern(t Tracker) {
+func (s *seqBool) Events(barNum int, barMeasure Measure) (res map[Measure][]*Event) {
 	if s.seq[s.pos] {
-		s.trafo.Pattern(t)
+		res = s.trafo.Events(barNum, barMeasure)
 	}
 	if s.pos < len(s.seq)-1 {
 		s.pos++
 	} else {
 		s.pos = 0
 	}
+	return
+}
+
+func (s *seqBool) NumBars() int {
+	return s.trafo.NumBars()
 }
 
 func SeqSwitch(trafo Pattern, seq ...bool) Pattern {
 	return &seqBool{seq: seq, pos: 0, trafo: trafo}
 }
 
-type sequence struct {
-	Pos int
-	seq []Pattern
-}
+type sequence []Pattern
 
-func (s *sequence) Pattern(t Tracker) {
-	s.seq[s.Pos].Pattern(t)
-	if s.Pos < len(s.seq)-1 {
-		s.Pos++
-	} else {
-		s.Pos = 0
+func (s sequence) NumBars() int {
+	num := 0
+
+	for _, p := range s {
+		num += p.NumBars()
 	}
+	return num
 }
 
-func SeqPatterns(seq ...Pattern) *sequence {
-	return &sequence{seq: seq}
+func (s sequence) Events(barNum int, barMeasure Measure) (res map[Measure][]*Event) {
+	num := 0
+
+	for _, p := range s {
+		next := num + p.NumBars()
+		if barNum < next {
+			return p.Events(barNum-num, barMeasure)
+		}
+		num = next
+	}
+	return
+}
+
+func SeqPatterns(seq ...Pattern) Pattern {
+	return sequence(seq)
 }
 
 type compose []Pattern
 
-func (c compose) Pattern(t Tracker) {
-	for _, trafo := range c {
-		if trafo != nil {
-			trafo.Pattern(t)
+func (c compose) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
+	res := map[Measure][]*Event{}
+	for _, pattern := range c {
+		if pattern != nil {
+			for pos, events := range pattern.Events(barNum, barMeasure) {
+				res[pos] = append(res[pos], events...)
+			}
 		}
 	}
+	return res
+}
+
+func (c compose) NumBars() int {
+	max := 1
+	for _, pattern := range c {
+		if pattern != nil {
+			if pattern.NumBars() > max {
+				max = pattern.NumBars()
+			}
+		}
+	}
+	return max
 }
 
 func MixPatterns(trafos ...Pattern) Pattern {

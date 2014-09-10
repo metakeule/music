@@ -5,9 +5,19 @@ type sequencer struct {
 	v   *Voice
 }
 
+func (s *sequencer) NumBars() int {
+	return s.seq.Next(s.v).NumBars()
+}
+
+func (s *sequencer) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
+	return s.seq.Next(s.v).Events(barNum, barMeasure)
+}
+
+/*
 func (s *sequencer) Pattern(t Tracker) {
 	s.seq.Next(s.v).Pattern(t)
 }
+*/
 
 type Sequencer interface {
 	Next(v *Voice) Pattern

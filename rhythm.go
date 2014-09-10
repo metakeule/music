@@ -6,16 +6,20 @@ type rhythm struct {
 	positionsIndex int
 	currentPos     float64
 	startPos       float64
-	Patterns       []Pattern
-	//barIndex       int
-	Loop *loop
+	// Patterns       []Pattern
+	// barIndex       int
+	*loop
 }
 
 func newRhythm(v *Voice, start string, pos ...string) *rhythm {
-	l := &loop{}
-	l.events = append(l.events, map[Measure][]*Event{})
 
-	return &rhythm{positions: pos, v: v, startPos: _M(start), Patterns: []Pattern{nil}, Loop: l}
+	l := &loop{
+		patterns: []Pattern{nil},
+	}
+	//	l.events = append(l.events, map[Measure][]*Event{})
+
+	//return &rhythm{positions: pos, v: v, startPos: _M(start), Patterns: []Pattern{nil}, Loop: l}
+	return &rhythm{positions: pos, v: v, startPos: _M(start), loop: l}
 }
 
 /*
@@ -26,12 +30,12 @@ func (r *rhythm) Pattern(t Tracker) {
 }
 */
 
-func (r *rhythm) BarEvents(bar int) map[Measure][]*Event {
-	return r.Loop.BarEvents(bar)
+func (r *rhythm) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
+	return r.loop.Events(barNum, barMeasure)
 }
 
 func (r *rhythm) NumBars() int {
-	return r.Loop.NumBars()
+	return r.loop.NumBars()
 }
 
 func (r *rhythm) currentMeasure() Measure {
@@ -50,10 +54,12 @@ func (r *rhythm) pos() (pos_ string) {
 
 func (r *rhythm) Next() *rhythm {
 	/*
-		r.barIndex++
 		r.Patterns = append(r.Patterns, nil)
 	*/
-	r.Loop.nextBar()
+	//	r.barIndex++
+	//r.Loop.nextBar()
+	//r.Patterns = append(r.Patterns, nil)
+	r.loop.patterns = append(r.loop.patterns, nil)
 	r.currentPos = 0
 	return r
 }
@@ -64,25 +70,47 @@ func (r *rhythm) addPattern(p Pattern) {
 }
 */
 
+func (r *rhythm) addPattern(p Pattern) {
+	pos := len(r.loop.patterns) - 1
+	r.loop.patterns[pos] = MixPatterns(r.loop.patterns[pos], p)
+}
+
 func (r *rhythm) Play(params ...Parameter) *rhythm {
 	//r.patterns = append(r.patterns, &play{r.currentMeasure(), r.v, MixParams(params...)})
-	r.Loop.At(r.currentMeasure(), OnEvent(r.v, MixParams(params...)))
+	// r.Loop.At(r.currentMeasure(), OnEvent(r.v, MixParams(params...)))
+
+	r.addPattern(&play{r.currentMeasure(), r.v, MixParams(params...)})
+
 	// r.addPattern(&play{r.currentMeasure(), r.v, MixParams(params...)})
+	r.currentPos += _M(r.pos())
+	return r
+}
+
+func (r *rhythm) PlayDur(dur string, params ...Parameter) *rhythm {
+	curr := r.currentMeasure()
+	r.addPattern(&play{curr, r.v, MixParams(params...)})
+	r.addPattern(&stop{curr + M(dur), r.v})
+	/*
+		r.Loop.At(curr, OnEvent(r.v, MixParams(params...)))
+		r.Loop.At(curr+M(dur), OffEvent(r.v))
+	*/
 	r.currentPos += _M(r.pos())
 	return r
 }
 
 func (r *rhythm) Stop() *rhythm {
 	// r.patterns = append(r.patterns, &stop{r.currentMeasure(), r.v})
-	r.Loop.At(r.currentMeasure(), OffEvent(r.v))
+	//r.Loop.At(r.currentMeasure(), OffEvent(r.v))
 	// r.addPattern(&stop{r.currentMeasure(), r.v})
+	r.addPattern(&stop{r.currentMeasure(), r.v})
 	r.currentPos += _M(r.pos())
 	return r
 }
 
 func (r *rhythm) Modify(params ...Parameter) *rhythm {
 
-	r.Loop.At(r.currentMeasure(), ChangeEvent(r.v, MixParams(params...)))
+	//r.Loop.At(r.currentMeasure(), ChangeEvent(r.v, MixParams(params...)))
+	r.addPattern(&mod{r.currentMeasure(), r.v, MixParams(params...)})
 	// r.patterns = append(r.patterns, &mod{r.currentMeasure(), r.v, MixParams(params...)})
 	// r.addPattern(&mod{r.currentMeasure(), r.v, MixParams(params...)})
 	r.currentPos += _M(r.pos())

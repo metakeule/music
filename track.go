@@ -21,7 +21,8 @@ type Tracker interface {
 }
 
 type Track struct {
-	Bars   []Measure
+	Bars []Measure
+
 	absPos Measure
 	tempi  []tempoAt
 	Events []*Event
@@ -43,7 +44,7 @@ func newTrack(tempo Tempo, m Measure) *Track {
 }
 
 // SetLoopAt sets a Loop so that startPos inside the loop matches position "0" inside the track bar
-func (t *Track) SetLoopAt(name string, startPos string, l Looper) *Track {
+func (t *Track) SetLoopAt(name string, startPos string, l Pattern) *Track {
 	t.loops[name] = &loopInTrack{
 		start: M(startPos),
 		loop:  l,
@@ -52,7 +53,7 @@ func (t *Track) SetLoopAt(name string, startPos string, l Looper) *Track {
 }
 
 // SetLoop sets a Loop so that position "0" inside the loop matches position "0" inside the track bar
-func (t *Track) SetLoop(name string, l Looper) *Track {
+func (t *Track) SetLoop(name string, l Pattern) *Track {
 	return t.SetLoopAt(name, "0", l)
 }
 
@@ -73,6 +74,7 @@ func (t *Track) Start(patterns ...Pattern) *Track {
 	if t.started {
 		panic("already started")
 	}
+
 	for _, l := range t.loops {
 		l.setEventsForBar(t)
 		// t.MixPatterns(l.Pattern)
@@ -88,6 +90,7 @@ func (t *Track) nextBar() {
 		panic("call Start() before Next()/Fill()")
 	}
 	t.Bars = append(t.Bars, t.Bars[len(t.Bars)-1])
+
 	t.absPos = t.absPos + t.Bars[len(t.Bars)-1]
 	for _, loop := range t.loops {
 		loop.setEventsForBar(t)
@@ -108,6 +111,7 @@ func (t *Track) changeBar(newBar Measure) {
 	if !t.started {
 		panic("call Start() before Change()")
 	}
+
 	t.Bars = append(t.Bars, newBar)
 	t.absPos = t.absPos + t.Bars[len(t.Bars)-1]
 	for _, loop := range t.loops {
@@ -331,9 +335,18 @@ func (t *Track) TempoAt(abspos Measure) Tempo {
 	panic("no tempo found")
 }
 
-func (t *Track) MixPatterns(tf ...Pattern) {
-	for _, trafo := range tf {
-		trafo.Pattern(t)
+func (t *Track) MixPatterns(patterns ...Pattern) {
+	for _, pattern := range patterns {
+		// trafo.Pattern(t)
+
+		//for pos, events := range trafo.Events(t.BarNum(), t.CurrentBar()) {
+		bars := pattern.NumBars()
+
+		for i := 0; i < bars; i++ {
+			for pos, events := range pattern.Events(i, t.CurrentBar()) {
+				t.At(t.CurrentBar()*Measure(i)+pos, events...)
+			}
+		}
 	}
 }
 

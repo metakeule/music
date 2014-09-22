@@ -128,6 +128,30 @@ func CustomEvent(fn func(*Event)) *Event {
 	}
 }
 
+type setTempo struct {
+	pos Measure
+	bpm float64
+}
+
+func (s *setTempo) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
+	return map[Measure][]*Event{
+		s.pos: []*Event{
+			&Event{
+				Params: Param("bpm", s.bpm),
+				type_:  "TEMPO_CHANGE",
+			},
+		},
+	}
+}
+
+func (s *setTempo) NumBars() int {
+	return 1
+}
+
+func SetTempo(pos string, bpm float64) *setTempo {
+	return &setTempo{M(pos), bpm}
+}
+
 type EventGenerator func(v *Voice, params ...Parameter) *Event
 
 /*
@@ -140,3 +164,16 @@ func ExecEvent(v *Voice, fn func(e *Event), params ...Parameter) *Event {
 	}
 }
 */
+
+// returns a Pattern for an event func at a certain position
+func EventFuncPattern(pos string, fn func(e *Event)) Pattern {
+	return PatternFunc(func(barNum int, t Tracker) map[Measure][]*Event {
+		return map[Measure][]*Event{M(pos): []*Event{CustomEvent(fn)}}
+	})
+}
+
+func Exec(pos string, fn func()) Pattern {
+	return EventFuncPattern(pos, func(e *Event) {
+		fn()
+	})
+}

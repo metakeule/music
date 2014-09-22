@@ -253,10 +253,10 @@ func (v *Voice) Modify(pos string, params ...Parameter) Pattern {
 	return &mod{M(pos), v, MixParams(params...)}
 }
 
-func (t *Track) Metronome(unit Measure, v *Voice, parameter ...Parameter) *Track {
-	m := &metronome{voice: v, unit: unit, eventProps: MixParams(parameter...), t: t}
-	t.SetLoop("metronome", m)
-	return t
+func (v *Voice) Metronome(unit Measure, parameter ...Parameter) *metronome {
+	m := &metronome{voice: v, unit: unit, eventProps: MixParams(parameter...)}
+	// t.SetLoop("metronome", m)
+	return m
 }
 
 func (v *Voice) Bar(parameter ...Parameter) Pattern {

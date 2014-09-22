@@ -2,24 +2,16 @@
 // something is played contrasting to amp that affects the amplitude
 package dyn
 
-import . "github.com/metakeule/music"
+import "github.com/metakeule/music"
 
 type dyn struct {
 	name  string
 	value float64
 }
 
-func (d dyn) String() string {
-	return d.name
-}
-
-func (d dyn) Value() float64 {
-	return d.value
-}
-
-func (d dyn) Params() map[string]float64 {
-	return Dyn(d.value).Params()
-}
+func (d dyn) String() string             { return d.name }
+func (d dyn) Value() float64             { return d.value }
+func (d dyn) Params() map[string]float64 { return music.Dyn(d.value).Params() }
 
 var (
 	FortissimoForte = dyn{"FortissimoForte", 3}

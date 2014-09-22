@@ -5,10 +5,6 @@ import (
 	"github.com/metakeule/music/note"
 )
 
-/*
-	TODO: make cord scales
-*/
-
 type Scale interface {
 	Degree(degree int) music.Parameter
 	Base() note.Note
@@ -219,6 +215,43 @@ func (s *stepper) Params() map[string]float64 {
 		s.Step = 0
 	}
 	return s.Scale.Degree(degr).Params()
+}
+
+type seq struct {
+	Scales  []Scale
+	current int
+}
+
+func (s *seq) Degree(degree int) music.Parameter {
+	return s.Scales[s.current].Degree(degree)
+}
+
+func (s *seq) Base() note.Note {
+	return s.Scales[s.current].Base()
+}
+
+func (s *seq) Next(pos string) music.Pattern {
+	return music.Exec(pos, func() {
+		if len(s.Scales)-1 <= s.current {
+			s.current = 0
+			return
+		}
+		s.current++
+	})
+}
+
+func (s *seq) Set(pos string, index int) music.Pattern {
+	if index < 0 {
+		panic("index < 0 not allowed")
+	}
+	if len(s.Scales)-1 <= index {
+		panic("index larger than len(Scales)-1")
+	}
+	return music.Exec(pos, func() { s.current = index })
+}
+
+func Seq(scales ...Scale) *seq {
+	return &seq{Scales: scales}
 }
 
 /*

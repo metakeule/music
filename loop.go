@@ -21,13 +21,13 @@ type loop struct {
 	patterns   []Pattern
 }
 
-func (l *loop) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
+func (l *loop) Events(barNum int, t Tracker) map[Measure][]*Event {
 	num := 0
 
 	for _, p := range l.patterns {
 		next := num + p.NumBars()
 		if barNum < next {
-			return p.Events(barNum-num, barMeasure)
+			return p.Events(barNum-num, t)
 		}
 		num = next
 	}
@@ -56,7 +56,7 @@ type loopInTrack struct {
 }
 
 func (l *loopInTrack) setEventsForBar(t *Track) {
-	for pos, events := range l.loop.Events(l.currentIndex, t.CurrentBar()) {
+	for pos, events := range l.loop.Events(l.currentIndex, t) {
 		t.At(l.start+pos, events...)
 	}
 	if l.currentIndex >= l.loop.NumBars()-1 {

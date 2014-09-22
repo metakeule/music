@@ -128,12 +128,12 @@ func CustomEvent(fn func(*Event)) *Event {
 	}
 }
 
-type setTempo struct {
+type setBpm struct {
 	pos Measure
 	bpm float64
 }
 
-func (s *setTempo) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
+func (s *setBpm) Events(barNum int, t Tracker) map[Measure][]*Event {
 	return map[Measure][]*Event{
 		s.pos: []*Event{
 			&Event{
@@ -144,12 +144,12 @@ func (s *setTempo) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
 	}
 }
 
-func (s *setTempo) NumBars() int {
+func (s *setBpm) NumBars() int {
 	return 1
 }
 
-func SetTempo(pos string, bpm float64) *setTempo {
-	return &setTempo{M(pos), bpm}
+func SetBPM(pos string, bpm float64) *setBpm {
+	return &setBpm{M(pos), bpm}
 }
 
 type EventGenerator func(v *Voice, params ...Parameter) *Event
@@ -172,8 +172,10 @@ func EventFuncPattern(pos string, fn func(e *Event)) Pattern {
 	})
 }
 
-func Exec(pos string, fn func()) Pattern {
+func Exec(pos string, fns ...func()) Pattern {
 	return EventFuncPattern(pos, func(e *Event) {
-		fn()
+		for _, fn := range fns {
+			fn()
+		}
 	})
 }

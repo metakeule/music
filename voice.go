@@ -40,7 +40,7 @@ type playDur struct {
 	Params Parameter
 }
 
-func (p *playDur) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
+func (p *playDur) Events(barNum int, t Tracker) map[Measure][]*Event {
 	m := map[Measure][]*Event{}
 	m[p.pos] = []*Event{
 		OnEvent(p.Voice, p.Params),
@@ -81,7 +81,7 @@ func (v *Voice) SetOffset(o float64) {
 	v.offset = o
 }
 
-func (p *play) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
+func (p *play) Events(barNum int, t Tracker) map[Measure][]*Event {
 	m := map[Measure][]*Event{}
 	m[p.pos] = []*Event{
 		OnEvent(p.Voice, p.Params),
@@ -117,13 +117,28 @@ func (v *Voice) Play(pos string, params ...Parameter) Pattern {
 type exec_ struct {
 	pos Measure
 	// fn    func(t Tracker) (EventGenerator, Parameter)
-	fn      PatternFunc
-	voice   *Voice
-	numbars int
+	//fn      PatternFunc
+	fn    func() *Event
+	voice *Voice
+	// numbars int
 }
 
-func (e *exec_) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
-	m := e.fn(barNum, barMeasure)
+/*
+func EventFuncPattern(pos string, fn func(e *Event)) Pattern {
+	return PatternFunc(func(barNum int, t Tracker) map[Measure][]*Event {
+		return map[Measure][]*Event{M(pos): []*Event{CustomEvent(fn)}}
+	})
+}
+*/
+func (e *exec_) Events(barNum int, t Tracker) map[Measure][]*Event {
+	ev := e.fn()
+	ev.Voice = e.voice
+	return map[Measure][]*Event{e.pos: []*Event{ev}}
+}
+
+/*
+func (e *exec_) Events(barNum int, t Tracker) map[Measure][]*Event {
+	m := e.fn(barNum, t)
 	for _, events := range m {
 		for _, ev := range events {
 			ev.Voice = e.voice
@@ -131,9 +146,11 @@ func (e *exec_) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
 	}
 	return m
 }
+*/
 
 func (e *exec_) NumBars() int {
-	return e.numbars
+	// return e.numbars
+	return 1
 }
 
 /*
@@ -150,8 +167,10 @@ func (v *Voice) Exec(pos string, fn func(t Tracker) (EventGenerator, Parameter))
 }
 */
 
-func (v *Voice) Exec(numBars int, pos string, fn PatternFunc) Pattern {
-	return &exec_{M(pos), fn, v, numBars}
+//func (v *Voice) Exec(numBars int, pos string, fn PatternFunc) Pattern {
+//func (v *Voice) Exec(numBars int, pos string, fn PatternFunc) Pattern {
+func (v *Voice) Exec(pos string, fn func() *Event) Pattern {
+	return &exec_{M(pos), fn, v}
 }
 
 type stop struct {
@@ -159,7 +178,7 @@ type stop struct {
 	*Voice
 }
 
-func (p *stop) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
+func (p *stop) Events(barNum int, t Tracker) map[Measure][]*Event {
 	m := map[Measure][]*Event{}
 	m[p.pos] = []*Event{
 		OffEvent(p.Voice),
@@ -187,7 +206,7 @@ type mod struct {
 	Params Parameter
 }
 
-func (m *mod) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
+func (m *mod) Events(barNum int, t Tracker) map[Measure][]*Event {
 	return map[Measure][]*Event{
 		m.pos: []*Event{
 			ChangeEvent(m.Voice, m.Params),
@@ -215,7 +234,7 @@ func (m *mute) NumBars() int {
 	return 1
 }
 
-func (m *mute) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
+func (m *mute) Events(barNum int, t Tracker) map[Measure][]*Event {
 	if m.mute {
 		return map[Measure][]*Event{
 			m.pos: []*Event{
@@ -268,13 +287,14 @@ type metronome struct {
 	voice      *Voice
 	unit       Measure
 	eventProps Parameter
-	t          *Track
+	// t          *Track
 }
 
 // TODO maybe make it more intelligent about barMeasure
-func (m *metronome) Events(barNum int, barMeasure Measure) (res map[Measure][]*Event) {
+func (m *metronome) Events(barNum int, t Tracker) (res map[Measure][]*Event) {
 	res = map[Measure][]*Event{}
-	n := int(m.t.CurrentBar() / m.unit)
+	//n := int(m.t.CurrentBar() / m.unit)
+	n := int(t.CurrentBar() / m.unit)
 	half := m.unit / 2
 	for i := 0; i < n; i++ {
 		pos1 := m.unit * Measure(i)
@@ -315,7 +335,7 @@ func (b *bar) NumBars() int {
 }
 
 // TODO: make it more intelligent with respect to measure
-func (m *bar) Events(barNum int, barMeasure Measure) (res map[Measure][]*Event) {
+func (m *bar) Events(barNum int, t Tracker) (res map[Measure][]*Event) {
 	return map[Measure][]*Event{
 		M("0"): []*Event{
 			OnEvent(m.voice, m.eventProps),
@@ -457,6 +477,10 @@ func (v *Voice) getCode(ev *Event) string {
 				return ""
 			}
 		*/
+		if ev.reference == nil {
+			return ""
+			// fmt.Printf("change event without reference: %v\n", ev.Params.Params())
+		}
 
 		if ev.reference.synthID == 0 || v.mute {
 			return ""
@@ -742,10 +766,10 @@ func Voices(v ...interface{}) voices {
 	return voices(vs)
 }
 
-func (vs voices) Exec(numBars int, pos string, fn PatternFunc) Pattern {
+func (vs voices) Exec(pos string, fn func() *Event) Pattern {
 	ps := []Pattern{}
 	for _, v := range vs {
-		ps = append(ps, v.Exec(numBars, pos, fn))
+		ps = append(ps, v.Exec(pos, fn))
 	}
 	return MixPatterns(ps...)
 }

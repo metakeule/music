@@ -13,16 +13,17 @@ type Pattern interface {
 */
 
 type Pattern interface {
-	Events(barNum int, barMeasure Measure) map[Measure][]*Event
+	//Events(barNum int, barMeasure Measure) map[Measure][]*Event
+	Events(barNum int, t Tracker) map[Measure][]*Event
 	NumBars() int
 }
 
 //type PatternFunc func(Tracker)
 
-type PatternFunc func(barNum int, barMeasure Measure) map[Measure][]*Event
+type PatternFunc func(barNum int, t Tracker) map[Measure][]*Event
 
-func (tf PatternFunc) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
-	return tf(barNum, barMeasure)
+func (tf PatternFunc) Events(barNum int, t Tracker) map[Measure][]*Event {
+	return tf(barNum, t)
 }
 
 func (tf PatternFunc) NumBars() int {
@@ -124,13 +125,29 @@ func (e End) Pattern(t Tracker) {
 	t.At(M(string(e)), fin)
 }
 
+func (e End) Events(barNum int, t Tracker) map[Measure][]*Event {
+	return map[Measure][]*Event{
+		M(string(e)): []*Event{fin},
+	}
+}
+
+func (e End) NumBars() int {
+	return 1
+}
+
 // var End = end{}
 type End string
 
 type Start string
 
-func (s Start) Pattern(t Tracker) {
-	t.At(M(string(s)), start)
+func (s Start) Events(barNum int, t Tracker) map[Measure][]*Event {
+	return map[Measure][]*Event{
+		M(string(s)): []*Event{start},
+	}
+}
+
+func (s Start) NumBars() int {
+	return 1
 }
 
 // var Start = begin{}
@@ -157,6 +174,7 @@ func (p *stopAll) Pattern(t Tracker) {
 }
 */
 
+/*
 type setTempo struct {
 	Tempo Tempo
 	Pos   Measure
@@ -170,7 +188,9 @@ func SetTempo(at string, t Tempo) *setTempo {
 func (s *setTempo) Pattern(t Tracker) {
 	t.(*Track).SetTempo(s.Pos, s.Tempo)
 }
+*/
 
+/*
 type times struct {
 	times int
 	trafo Pattern
@@ -191,6 +211,7 @@ func (n *times) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
 	}
 	return res
 }
+*/
 
 /*
 func (n *times) Pattern(t Tracker) {
@@ -200,9 +221,12 @@ func (n *times) Pattern(t Tracker) {
 }
 */
 
+/*
+
 func Times(num int, trafo Pattern) Pattern {
 	return &times{times: num, trafo: trafo}
 }
+*/
 
 func init() {
 	rand.Seed(time.Now().UTC().UnixNano())
@@ -210,8 +234,8 @@ func init() {
 
 type randomPattern []Pattern
 
-func (r randomPattern) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
-	return r[rand.Intn(len(r))].Events(barNum, barMeasure)
+func (r randomPattern) Events(barNum int, t Tracker) map[Measure][]*Event {
+	return r[rand.Intn(len(r))].Events(barNum, t)
 }
 
 func (r randomPattern) NumBars() int {
@@ -248,7 +272,7 @@ type tempoSpan struct {
 	current  float64
 	step     float64
 	modifier func(current, step float64) float64
-	t        *Track
+	// t        *Track
 }
 
 type tempoSpanTrafo struct {
@@ -267,16 +291,18 @@ func (ts *tempoSpanTrafo) NumBars() int {
 // TODO: fix it! we need to have a TempoSpan event that is handled specially by the  Tracker - OR - a
 // special Event type that has a method that receives a *Track and may act upon it
 // that must be somehow integrated to the tracker methods
-func (ts *tempoSpanTrafo) Events(barNum int, barMeasure Measure) (res map[Measure][]*Event) {
+func (ts *tempoSpanTrafo) Events(barNum int, t Tracker) (res map[Measure][]*Event) {
 	var newtempo float64
 	if ts.current == -1 {
-		newtempo = ts.modifier(ts.t.TempoAt(M(ts.pos)).BPM(), ts.step)
+		//newtempo = ts.modifier(ts.t.TempoAt(M(ts.pos)).BPM(), ts.step)
+		newtempo = ts.modifier(t.TempoAt(M(ts.pos)).BPM(), ts.step)
 	} else {
 		ts.current = ts.modifier(ts.current, ts.step)
 		newtempo = ts.current
 	}
 	//rounded := RoundFloat(newtempo, 4)
-	ts.t.SetTempo(M(ts.pos), BPM(newtempo))
+	//ts.t.SetTempo(M(ts.pos), BPM(newtempo))
+	t.SetTempo(M(ts.pos), BPM(newtempo))
 	return nil
 }
 
@@ -314,9 +340,12 @@ type seqBool struct {
 	trafo Pattern
 }
 
-func (s *seqBool) Events(barNum int, barMeasure Measure) (res map[Measure][]*Event) {
+func (s *seqBool) Events(barNum int, t Tracker) (res map[Measure][]*Event) {
+	if s.trafo == nil {
+		return nil
+	}
 	if s.seq[s.pos] {
-		res = s.trafo.Events(barNum, barMeasure)
+		res = s.trafo.Events(barNum, t)
 	}
 	if s.pos < len(s.seq)-1 {
 		s.pos++
@@ -327,6 +356,9 @@ func (s *seqBool) Events(barNum int, barMeasure Measure) (res map[Measure][]*Eve
 }
 
 func (s *seqBool) NumBars() int {
+	if s.trafo == nil {
+		return 1
+	}
 	return s.trafo.NumBars()
 }
 
@@ -345,13 +377,13 @@ func (s sequence) NumBars() int {
 	return num
 }
 
-func (s sequence) Events(barNum int, barMeasure Measure) (res map[Measure][]*Event) {
+func (s sequence) Events(barNum int, t Tracker) (res map[Measure][]*Event) {
 	num := 0
 
 	for _, p := range s {
 		next := num + p.NumBars()
 		if barNum < next {
-			return p.Events(barNum-num, barMeasure)
+			return p.Events(barNum-num, t)
 		}
 		num = next
 	}
@@ -364,11 +396,11 @@ func SeqPatterns(seq ...Pattern) Pattern {
 
 type compose []Pattern
 
-func (c compose) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
+func (c compose) Events(barNum int, t Tracker) map[Measure][]*Event {
 	res := map[Measure][]*Event{}
 	for _, pattern := range c {
 		if pattern != nil {
-			for pos, events := range pattern.Events(barNum, barMeasure) {
+			for pos, events := range pattern.Events(barNum, t) {
 				res[pos] = append(res[pos], events...)
 			}
 		}

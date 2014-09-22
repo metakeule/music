@@ -14,6 +14,9 @@ type Tracker interface {
 		TempoAt(abspos Measure) Tempo
 	*/
 	At(pos Measure, events ...*Event)
+	TempoAt(abspos Measure) Tempo
+	CurrentBar() Measure
+	SetTempo(pos Measure, tempo Tempo)
 	/*
 		MixPatterns(tf ...Pattern)
 		CurrentBar() Measure
@@ -44,17 +47,31 @@ func newTrack(tempo Tempo, m Measure) *Track {
 }
 
 // SetLoopAt sets a Loop so that startPos inside the loop matches position "0" inside the track bar
-func (t *Track) SetLoopAt(name string, startPos string, l Pattern) *Track {
+func (t *Track) SetLoopAt(name string, startPos string, pattern Pattern) *Track {
 	t.loops[name] = &loopInTrack{
 		start: M(startPos),
-		loop:  l,
+		loop:  pattern,
 	}
 	return t
 }
 
 // SetLoop sets a Loop so that position "0" inside the loop matches position "0" inside the track bar
-func (t *Track) SetLoop(name string, l Pattern) *Track {
-	return t.SetLoopAt(name, "0", l)
+func (t *Track) SetLoop(name string, pattern Pattern) *Track {
+	return t.SetLoopAt(name, "0", pattern)
+}
+
+func (t *Track) SetLoops(namePatternPairs ...interface{}) *Track {
+	if len(namePatternPairs)%2 != 0 {
+		panic("namePatternPairs must be pairs of name and Pattern")
+	}
+
+	for i := 0; i < len(namePatternPairs); {
+		name := namePatternPairs[i].(string)
+		pattern := namePatternPairs[i+1].(Pattern)
+		t.SetLoop(name, pattern)
+		i += 2
+	}
+	return t
 }
 
 // RemoveLoops removes all loops if no names is passed
@@ -337,14 +354,30 @@ func (t *Track) TempoAt(abspos Measure) Tempo {
 
 func (t *Track) MixPatterns(patterns ...Pattern) {
 	for _, pattern := range patterns {
+
+		// switch x := pattern.(type) {
+		// case *tempoSpanTrafo:
+		// x.t = t
+		// case *metronome:
+		// x.t = t
+		// }
+
 		// trafo.Pattern(t)
 
 		//for pos, events := range trafo.Events(t.BarNum(), t.CurrentBar()) {
 		bars := pattern.NumBars()
-
 		for i := 0; i < bars; i++ {
-			for pos, events := range pattern.Events(i, t.CurrentBar()) {
-				t.At(t.CurrentBar()*Measure(i)+pos, events...)
+			for pos, events := range pattern.Events(i, t) {
+
+				for _, ev := range events {
+					if ev.type_ == "TEMPO_CHANGE" {
+						bpm := ev.Params.Params()["bpm"]
+						t.SetTempo(pos, BPM(bpm))
+					} else {
+						t.At(t.CurrentBar()*Measure(i)+pos, ev)
+					}
+				}
+
 			}
 		}
 	}

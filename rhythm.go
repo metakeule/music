@@ -30,8 +30,8 @@ func (r *rhythm) Pattern(t Tracker) {
 }
 */
 
-func (r *rhythm) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
-	return r.loop.Events(barNum, barMeasure)
+func (r *rhythm) Events(barNum int, t Tracker) map[Measure][]*Event {
+	return r.loop.Events(barNum, t)
 }
 
 func (r *rhythm) NumBars() int {

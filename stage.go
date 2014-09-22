@@ -360,7 +360,10 @@ func (s *Stage) Play(startOffset uint) {
 			tickMapped[freeTick] = append(tickMapped[freeTick], freeer)
 		}
 
-		ev.runner(ev)
+		if ev.runner != nil {
+			// fmt.Printf("nil runner: %#v\n", ev.type_)
+			ev.runner(ev)
+		}
 		//}
 		if ev.type_ == "ON" {
 			currTick = MillisecsToTick(ev.offset) + currTick

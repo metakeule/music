@@ -7,13 +7,13 @@ type phrase struct {
 	patterns   []Pattern
 }
 
-func (m *phrase) Events(barNum int, barMeasure Measure) map[Measure][]*Event {
+func (m *phrase) Events(barNum int, t Tracker) map[Measure][]*Event {
 	res := map[Measure][]*Event{}
 	pos := m.startPos
 	for _, p := range m.patterns {
 		//p.Pattern(t)
 		// WARNING: does only work as long as each pattern has only one key (pos)
-		for evPos, events := range p.Events(barNum, barMeasure) {
+		for evPos, events := range p.Events(barNum, t) {
 			currentPos := Measure(int(pos)) + evPos
 			res[currentPos] = append(res[currentPos], events...)
 			pos += float64(int(evPos))

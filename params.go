@@ -29,6 +29,12 @@ type Parameter interface {
 	Params() map[string]float64
 }
 
+type ParameterFunc func() map[string]float64
+
+func (p ParameterFunc) Params() map[string]float64 {
+	return p()
+}
+
 type ParamsMap map[string]float64
 
 func (p ParamsMap) Params() map[string]float64 {

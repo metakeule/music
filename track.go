@@ -30,7 +30,8 @@ type Track struct {
 	tempi  []tempoAt
 	Events []*Event
 	// loops  []Pattern
-	loops map[string]*loopInTrack
+	loops  map[string]*loopInTrack
+	loops2 []*TrackLoopStart
 	// loopsNum map[string]uint
 	compiled bool
 	started  bool
@@ -58,6 +59,41 @@ func (t *Track) SetLoopAt(name string, startPos string, pattern Pattern) *Track 
 // SetLoop sets a Loop so that position "0" inside the loop matches position "0" inside the track bar
 func (t *Track) SetLoop(name string, pattern Pattern) *Track {
 	return t.SetLoopAt(name, "0", pattern)
+}
+
+func (t *Track) addLoop(l *TrackLoopStart) {
+	for _, ll := range t.loops2 {
+		if ll.TrackLoop == l.TrackLoop {
+			return
+		}
+	}
+	// fmt.Printf("adding loop %s\n", l.Name)
+	t.loops2 = append(t.loops2, l)
+}
+
+func (t *Track) replaceLoop(l *TrackLoopReplacer) {
+	for _, ll := range t.loops2 {
+		if ll.TrackLoop == l.TrackLoop {
+			ll.TrackLoop.loop = l.newLoop
+			ll.currentIndex = 0
+			ll.start = l.start
+		}
+	}
+	// fmt.Printf("adding loop %s\n", l.Name)
+	// t.loops2 = append(t.loops2, l)
+}
+
+func (t *Track) removeLoop(l *TrackLoop) {
+	loops2 := []*TrackLoopStart{}
+
+	for _, ll := range t.loops2 {
+		if ll.TrackLoop == l {
+			continue
+		}
+		loops2 = append(loops2, ll)
+	}
+
+	t.loops2 = loops2
 }
 
 func (t *Track) SetLoops(namePatternPairs ...interface{}) *Track {
@@ -106,6 +142,14 @@ func (t *Track) nextBar() {
 	if !t.started {
 		panic("call Start() before Next()/Fill()")
 	}
+	/*
+		for _, l := range t.loops2 {
+			l.setEventsForBar(t)
+		}
+	*/
+	for _, l := range t.loops2 {
+		l.setEventsForBar(t)
+	}
 	t.Bars = append(t.Bars, t.Bars[len(t.Bars)-1])
 
 	t.absPos = t.absPos + t.Bars[len(t.Bars)-1]
@@ -122,13 +166,16 @@ func (t *Track) nextBar() {
 			}
 		*/
 	}
+
 }
 
 func (t *Track) changeBar(newBar Measure) {
 	if !t.started {
 		panic("call Start() before Change()")
 	}
-
+	for _, l := range t.loops2 {
+		l.setEventsForBar(t)
+	}
 	t.Bars = append(t.Bars, newBar)
 	t.absPos = t.absPos + t.Bars[len(t.Bars)-1]
 	for _, loop := range t.loops {
@@ -144,6 +191,7 @@ func (t *Track) changeBar(newBar Measure) {
 			}
 		*/
 	}
+
 }
 
 // raster is, how many ticks will equal to 3 chars width
@@ -353,7 +401,27 @@ func (t *Track) TempoAt(abspos Measure) Tempo {
 }
 
 func (t *Track) MixPatterns(patterns ...Pattern) {
+	// stops := map[*TrackLoop]Measure{}
 	for _, pattern := range patterns {
+
+		switch x := pattern.(type) {
+		case *TrackLoopStart:
+			t.addLoop(x)
+			continue
+		case *TrackLoopStop:
+			// stops[x.TrackLoop] = x.stopAt
+			t.removeLoop(x.TrackLoop)
+			continue
+		case *TrackLoopReplacer:
+			st := &TrackLoopStart{
+				TrackLoop:    x.TrackLoop,
+				start:        x.start,
+				currentIndex: 0,
+			}
+			t.addLoop(st)
+			t.replaceLoop(x)
+			continue
+		}
 
 		// switch x := pattern.(type) {
 		// case *tempoSpanTrafo:
@@ -381,6 +449,24 @@ func (t *Track) MixPatterns(patterns ...Pattern) {
 			}
 		}
 	}
+
+	// for _, l := range t.loops2 {
+	// stop, found := stops[l.TrackLoop]
+	// if found {
+	// l.setEventsForBar(t, &stop)
+	// l.setEventsForBar(t)
+	// }
+	/*
+		else {
+			l.setEventsForBar(t, nil)
+		}
+	*/
+	// }
+	/*
+		for tl := range stops {
+			t.removeLoop(tl)
+		}
+	*/
 }
 
 func (t *Track) Next(tr ...Pattern) *Track {
